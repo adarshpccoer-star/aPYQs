@@ -9,6 +9,13 @@ const HomeScreen = () => {
   return (
     <SafeAreaView style={{ flex: 1 }} className="bg-surface">
       {/* TOP APP BAR */}
+
+      <Pressable
+        className="w-full bg-on-secondary-container text-red-500"
+        onPress={() => navigation.navigate('Login')}
+      >
+        login
+      </Pressable>
       <View className="bg-surface border-b border-surface-variant flex-row justify-between items-center w-full px-6 py-4">
         <View className="flex-row items-center gap-4">
           <View className="w-10 h-10 rounded-full overflow-hidden bg-surface-container border border-surface-variant flex-row items-center justify-center shrink-0">
@@ -19,9 +26,15 @@ const HomeScreen = () => {
               className="w-full h-full object-cover"
             />
           </View>
-          <Text className="font-mono text-[12px] leading-[16px] tracking-widest text-on-surface font-extrabold uppercase">
+          {/* <Text className="font-mono text-[12px] leading-[16px] tracking-widest text-on-surface font-extrabold uppercase">
             PYQ MASTER
-          </Text>
+          </Text> */}
+          <Pressable
+            className="w-full bg-red-500 px-6 py-4 items-center justify-center"
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text className="text-white text-lg font-bold">Login</Text>
+          </Pressable>
         </View>
         <Pressable className="text-primary p-2 rounded-full bg-surface-container-low active:opacity-80">
           <Text className="text-lg">🔔</Text>
