@@ -36,45 +36,41 @@ export const getSubjects = async (req: Request, res: Response) => {
 const escapeRegex = (value: string): string => {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
+
 export const getquestions = async (req: Request, res: Response) => {
   try {
     const { branch, mainTopic, page = '1', limit = '20' } = req.query;
 
-    // Convert query params safely to strings
-    const branchValue = typeof branch === 'string' ? branch : undefined;
-
-    const mainTopicValue =
-      typeof mainTopic === 'string' ? mainTopic : undefined;
-
-    const pageValue = typeof page === 'string' ? page : '1';
-
-    const limitValue = typeof limit === 'string' ? limit : '20';
-
-    const pageNum = Math.max(1, Number.parseInt(pageValue, 10) || 1);
-
+    const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
     const limitNum = Math.min(
       100,
-      Math.max(1, Number.parseInt(limitValue, 10) || 20),
+      Math.max(1, parseInt(String(limit), 10) || 20),
     );
 
-    // Explicitly type the MongoDB filter
-    const filter: {
-      mainTopic?: RegExp;
-      branch?: RegExp;
-    } = {};
-    if (mainTopicValue) {
-      filter.mainTopic = new RegExp(`^${escapeRegex(mainTopicValue)}$`, 'i');
+    // Construct filter object
+    const filter: Record<string, unknown> = {};
+
+    if (typeof branch === 'string' && branch.trim() && branch !== 'All') {
+      filter.branch = new RegExp(`^${escapeRegex(branch.trim())}$`, 'i');
     }
 
-    if (branchValue) {
-      filter.branch = new RegExp(`^${escapeRegex(branchValue)}$`, 'i');
+    if (
+      typeof mainTopic === 'string' &&
+      mainTopic.trim() &&
+      mainTopic !== 'All'
+    ) {
+      filter.mainTopic = new RegExp(`^${escapeRegex(mainTopic.trim())}$`, 'i');
     }
 
     const skip = (pageNum - 1) * limitNum;
 
+    // Execute query and count concurrently
     const [questions, totalQuestions] = await Promise.all([
-      QuestionModel.find(filter).skip(skip).limit(limitNum).lean(),
-
+      QuestionModel.find(filter)
+        .sort({ createdAt: -1 }) // Added explicit sorting for stable pagination
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
       QuestionModel.countDocuments(filter),
     ]);
 

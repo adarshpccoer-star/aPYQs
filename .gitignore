@@ -1,7 +1,9 @@
 # OSX
 #
+.gitignore
 .DS_Store
-
+dist/
+.env
 # Xcode
 #
 build/

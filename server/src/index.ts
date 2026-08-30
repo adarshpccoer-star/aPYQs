@@ -244,7 +244,7 @@ app.all('/api/auth/{*splat}', async (req, res) => {
 // Escape special regex characters
 
 app.get('/api/questions', getquestions);
-app.post('/api/subject/:branch', getSubjects);
+app.get('/api/subject/:branch', getSubjects);
 
 app.listen(3000, '0.0.0.0', async () => {
   await connectToMongo();
