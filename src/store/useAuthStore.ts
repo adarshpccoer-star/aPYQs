@@ -8,6 +8,9 @@ export type User = {
   email: string;
   name?: string | null;
   image?: string | null;
+  branch: string;
+  yearOfGate: string;
+  branchCode: string;
 };
 
 type AuthState = {
