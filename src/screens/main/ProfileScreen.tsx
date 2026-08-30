@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, Image, ScrollView, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuthStore } from '../../store/useAuthStore';
+import { DEFAULT_AVATAR } from './HomeScreen';
+import { ScreenLayout } from '../../components/ScreenLayout';
 
 export default function ProfileScreen() {
   const chartData = [
@@ -12,27 +14,12 @@ export default function ProfileScreen() {
     { day: 'Sat', height: 'h-[60%]' },
     { day: 'Sun', height: 'h-[20%]' },
   ];
+  const { user } = useAuthStore();
+  const date = new Date();
 
+  /* FIX: Removed redundant inner SafeAreaView since ScreenLayout provides safe area context */
   return (
-    <SafeAreaView style={{ flex: 1 }} className="bg-background">
-      {/* HEADER */}
-      <View className="bg-surface border-b border-surface-variant flex-row justify-between items-center w-full px-6 py-4">
-        <View className="flex-row items-center gap-2">
-          <Image
-            source={{
-              uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBHtlVTMQdbh3kiQAa4o1ZSUbelvsLa2aiwLR79-N_C0Ss6lmbACB26BbucWklQvfnMZJG77OIbNUH5Wi8FqPfKRolDSXzw9df2bUReKWSorUoC4TJoJDDy-rOeAgqj547vaqNJEUONG0SbwNZ2GwsPs_MXIBPZm7Q6EljLOdS285wmMR2oVcxlj1XG7PGqDNmxzMjBGbpHFcGgaOw6g8RP0LyQ9os4Cc4_kxojZv0Htan9hfiVQpc',
-            }}
-            className="w-8 h-8 rounded-full border border-surface-variant"
-          />
-          <Text className="font-mono text-[12px] leading-[16px] tracking-widest text-on-surface font-medium">
-            PYQ MASTER
-          </Text>
-        </View>
-        <TouchableOpacity className="p-2 rounded-full bg-surface-container-low">
-          <Text className="text-on-surface-variant">🔔</Text>
-        </TouchableOpacity>
-      </View>
-
+    <ScreenLayout title="Profile">
       <ScrollView
         contentContainerStyle={{ paddingBottom: 80 }}
         className="px-4 py-6 gap-y-6"
@@ -40,27 +27,25 @@ export default function ProfileScreen() {
         {/* PROFILE HEADER */}
         <View className="items-center py-2">
           <Image
-            source={{
-              uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBl3dT7gLoG0AqfsS5FwUfh9E6_eGTBZkljmlR7MEwQvVxb4-4dIVBbRdKSThs1gX2RgrfP0oin2RjeNz5PLeBHfGlF1idcawm-yONqfv3zFFQhM7TdCbSMGFP5AYN9LMg2R_wiEZG3t-LtZqRi5Nk65Kw2B79cj6tSt8dWcpmj-OhvbhwjyuLRTA6qxGHOSMTbZHEFa3VcLW-7wZv-Fn40xjbYjEKyKjMeCdYaOUsM5TeEbnj2YD8',
-            }}
+            source={{ uri: user?.image || DEFAULT_AVATAR }}
             className="w-32 h-32 rounded-full border-2 border-surface-variant"
           />
           <View className="items-center mt-3">
             <Text className="font-inter font-bold text-[24px] leading-[32px] text-on-background">
-              Alex Mercer
+              {user?.name}
             </Text>
             <Text className="font-inter text-[18px] leading-[28px] text-on-surface-variant mt-1">
-              Computer Science Major
+              {user?.branch || 'Computer Science'}
             </Text>
             <View className="flex-row gap-2 mt-4">
               <View className="border border-surface-variant px-2 py-1 rounded">
                 <Text className="font-mono text-[12px] leading-[16px] text-on-surface">
-                  2024 Aspirant
+                  {user?.yearOfGate || date.getFullYear() + 4} Aspirant
                 </Text>
               </View>
               <View className="border border-surface-variant px-2 py-1 rounded">
                 <Text className="font-mono text-[12px] leading-[16px] text-on-surface">
-                  GATE CS
+                  GATE {user?.branchCode || 'CSE'}
                 </Text>
               </View>
             </View>
@@ -131,141 +116,7 @@ export default function ProfileScreen() {
             ))}
           </View>
         </View>
-
-        {/* SAVED QUESTIONS */}
-        <View className="gap-3">
-          <Text className="font-inter font-semibold text-[20px] text-on-background">
-            Saved Questions
-          </Text>
-
-          <View className="bg-surface border border-surface-variant p-4 rounded-lg gap-2">
-            <View className="flex-row gap-2">
-              <View className="border border-surface-variant px-2 py-0.5 rounded">
-                <Text className="font-mono text-[12px]">2022</Text>
-              </View>
-              <View className="border border-surface-variant px-2 py-0.5 rounded">
-                <Text className="font-mono text-[12px]">ALGO</Text>
-              </View>
-              <View className="border border-error px-2 py-0.5 rounded">
-                <Text className="font-mono text-[12px] text-error">HARD</Text>
-              </View>
-            </View>
-            <Text
-              className="font-inter text-[16px] leading-[24px] text-on-background"
-              numberOfLines={2}
-            >
-              Determine the time complexity of the following recursive function
-              using the Master Theorem...
-            </Text>
-          </View>
-
-          <View className="bg-surface border border-surface-variant p-4 rounded-lg gap-2">
-            <View className="flex-row gap-2">
-              <View className="border border-surface-variant px-2 py-0.5 rounded">
-                <Text className="font-mono text-[12px]">2021</Text>
-              </View>
-              <View className="border border-surface-variant px-2 py-0.5 rounded">
-                <Text className="font-mono text-[12px]">OS</Text>
-              </View>
-              <View className="border border-surface-variant px-2 py-0.5 rounded">
-                <Text className="font-mono text-[12px]">MED</Text>
-              </View>
-            </View>
-            <Text
-              className="font-inter text-[16px] leading-[24px] text-on-background"
-              numberOfLines={2}
-            >
-              Consider a system with 4 processes and 3 resource types. Check if
-              the current state is safe...
-            </Text>
-          </View>
-
-          <TouchableOpacity className="border border-surface-variant bg-transparent py-2.5 rounded items-center">
-            <Text className="font-inter font-semibold text-[14px] text-on-background">
-              View All Saved (42)
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* RECENT MOCK TESTS */}
-        <View className="gap-3">
-          <Text className="font-inter font-semibold text-[20px] text-on-background">
-            Recent Mock Tests
-          </Text>
-
-          <View className="flex-row justify-between items-center bg-surface border border-surface-variant p-4 rounded-lg">
-            <View>
-              <Text className="font-inter font-bold text-[16px] text-on-background">
-                Full Mock Test - 04
-              </Text>
-              <Text className="font-mono text-[12px] text-on-surface-variant mt-1">
-                Oct 12, 2023
-              </Text>
-            </View>
-            <View className="items-end">
-              <Text className="font-inter font-semibold text-[20px] text-on-background">
-                58/65
-              </Text>
-              <Text className="font-mono text-[12px] text-primary-container">
-                Score
-              </Text>
-            </View>
-          </View>
-
-          <View className="flex-row justify-between items-center bg-surface border border-surface-variant p-4 rounded-lg">
-            <View>
-              <Text className="font-inter font-bold text-[16px] text-on-background">
-                Subject Mock: DBMS
-              </Text>
-              <Text className="font-mono text-[12px] text-on-surface-variant mt-1">
-                Oct 08, 2023
-              </Text>
-            </View>
-            <View className="items-end">
-              <Text className="font-inter font-semibold text-[20px] text-on-background">
-                22/25
-              </Text>
-              <Text className="font-mono text-[12px] text-primary-container">
-                Score
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity className="bg-black py-2.5 rounded items-center">
-            <Text className="font-inter font-semibold text-[14px] text-white">
-              Start New Test
-            </Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
-
-      {/* FIXED BOTTOM NAVIGATION */}
-      <View className="absolute bottom-0 left-0 right-0 h-16 bg-surface border-t border-surface-variant flex-row justify-around items-center px-4">
-        <TouchableOpacity className="items-center">
-          <Text className="text-lg">🏠</Text>
-          <Text className="font-inter font-semibold text-[12px] text-on-secondary-container mt-0.5">
-            Home
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity className="items-center">
-          <Text className="text-lg">🔍</Text>
-          <Text className="font-inter font-semibold text-[12px] text-on-secondary-container mt-0.5">
-            Browse
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity className="items-center">
-          <Text className="text-lg">📜</Text>
-          <Text className="font-inter font-semibold text-[12px] text-on-secondary-container mt-0.5">
-            History
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity className="items-center">
-          <Text className="text-lg">👤</Text>
-          <Text className="font-inter font-bold text-[12px] text-primary mt-0.5">
-            Profile
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }

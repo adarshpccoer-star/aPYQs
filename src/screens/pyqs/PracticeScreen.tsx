@@ -1,161 +1,406 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import React, { memo, useCallback, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  TextInput,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { fetchQuestions, Question, QuestionOption } from '../../api/question';
+import { MoveRight } from 'lucide-react-native';
+import SolutionDetail from './SolutionDetail';
 
-const PracticeScreen = () => {
-  const navigation = useNavigation<any>();
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+export type RootStackParamList = {
+  MainTabs: undefined;
+  Practice: { branch: string; subject: string };
+};
 
-  const options = [
-    { id: 'A', text: 'x₀ = F₀ / k' },
-    { id: 'B', text: 'x₀ = -F₀ / k' },
-    { id: 'C', text: 'x₀ = F₀ / (2k)' },
-    { id: 'D', text: 'x₀ = 0' },
-  ];
+type PracticeRouteProp = RouteProp<RootStackParamList, 'Practice'>;
 
-  return (
-    <SafeAreaView style={{ flex: 1 }} className="bg-background flex-col">
-      {/* TOP APP BAR */}
-      <View className="bg-surface border-b border-surface-variant flex-row justify-between items-center w-full px-6 py-4 z-10">
-        <View className="flex-row items-center gap-4">
-          <Pressable
-            onPress={() => navigation.goBack()}
-            className="p-2 rounded-full active:bg-surface-container-low"
+interface AnswerOptionProps {
+  option: QuestionOption;
+  optionKey: string;
+  selected: boolean;
+  submitted: boolean;
+  target: boolean;
+  type: 'MCQ' | 'MSQ';
+  onPress: (key: string) => void;
+}
+
+/**
+ * Isolated, memoized Option Component to prevent unnecessary parent re-renders
+ * and improve selection response speed.
+ */
+const AnswerOption = memo(
+  ({
+    option,
+    optionKey,
+    selected,
+    submitted,
+    target,
+    type,
+    onPress,
+  }: AnswerOptionProps) => {
+    let borderStyle = 'border-surface-variant';
+    let bgStyle = 'bg-surface';
+
+    if (submitted) {
+      if (target) {
+        borderStyle = 'border-2 border-green-600';
+        bgStyle = 'bg-green-500/10';
+      } else if (selected && !target) {
+        borderStyle = 'border-2 border-red-600';
+        bgStyle = 'bg-red-500/10';
+      }
+    } else if (selected) {
+      borderStyle = 'border-2 border-on-surface';
+    }
+
+    return (
+      <Pressable
+        disabled={submitted}
+        onPress={() => onPress(optionKey)}
+        className={`border rounded-lg p-5 flex-row items-center gap-4 ${borderStyle} ${bgStyle}`}
+      >
+        <View
+          className={`w-7 h-7 ${
+            type === 'MSQ' ? 'rounded-md' : 'rounded-full'
+          } border items-center justify-center ${
+            submitted && target
+              ? 'bg-green-600 border-green-600'
+              : submitted && selected && !target
+              ? 'bg-red-600 border-red-600'
+              : selected
+              ? 'bg-on-surface border-on-surface'
+              : 'border-surface-variant'
+          }`}
+        >
+          <Text
+            className={`font-mono text-[12px] ${
+              selected || (submitted && target)
+                ? 'text-white'
+                : 'text-on-surface'
+            }`}
           >
-            <Text className="text-on-surface-variant text-xl leading-none">
-              ✕
-            </Text>
-          </Pressable>
-          <Text className="font-mono text-[12px] leading-[16px] tracking-widest text-on-surface uppercase font-medium">
-            PYQ MASTER
+            {optionKey}
           </Text>
         </View>
 
-        <View className="flex-row items-center gap-4">
-          <View className="flex-row items-center gap-2 bg-surface-container px-3 py-1.5 rounded-full border border-surface-variant">
-            <Text className="text-primary text-sm">⏱</Text>
-            <Text className="font-mono text-[12px] leading-[16px] font-bold text-on-surface">
-              14:23
-            </Text>
-          </View>
-          <Pressable className="p-2 rounded-full active:bg-surface-container-low active:scale-95">
-            <Text className="text-on-surface-variant text-xl leading-none">
-              🔖
-            </Text>
-          </Pressable>
+        <View className="flex-1">
+          <Text className="font-inter text-[16px] text-on-surface">
+            {option.latex}
+          </Text>
         </View>
-      </View>
+      </Pressable>
+    );
+  },
+);
 
-      {/* MAIN CONTENT */}
+AnswerOption.displayName = 'AnswerOption';
+
+const PracticeScreen = () => {
+  const navigation = useNavigation<any>();
+  const route = useRoute<PracticeRouteProp>();
+  const { branch, subject } = route.params;
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [natAnswer, setNatAnswer] = useState<string>('');
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+  } = useInfiniteQuery({
+    queryKey: ['practiceQuestions', branch, subject],
+    queryFn: ({ pageParam }) => fetchQuestions(branch, subject, pageParam, 20),
+    initialPageParam: 1,
+    getNextPageParam: lastPage => {
+      if (!lastPage.pagination.hasNextPage) return undefined;
+      return lastPage.pagination.page + 1;
+    },
+  });
+
+  const questions: Question[] = useMemo(
+    () => (data ? data.pages.flatMap(p => p.data) : []),
+    [data],
+  );
+
+  const currentQuestion = questions[currentIndex];
+
+  /**
+   * Target answer determination helpers derived cleanly via memoization.
+   */
+  const targetAnswers: string[] = useMemo(() => {
+    if (!currentQuestion) return [];
+    if (Array.isArray(currentQuestion.answer)) {
+      return currentQuestion.answer;
+    }
+    if (currentQuestion.answer) {
+      return [String(currentQuestion.answer)];
+    }
+    return (
+      currentQuestion.options?.filter(o => o.correct).map(o => o.key) || []
+    );
+  }, [currentQuestion]);
+
+  /**
+   * Calculate correctness based on the validated answer target and user inputs.
+   */
+  const isCorrect = useMemo(() => {
+    if (!currentQuestion || !isSubmitted) return false;
+
+    if (currentQuestion.type === 'MCQ') {
+      return (
+        selectedOptions.length === 1 &&
+        targetAnswers.includes(selectedOptions[0])
+      );
+    }
+
+    if (currentQuestion.type === 'MSQ') {
+      if (selectedOptions.length !== targetAnswers.length) return false;
+      const selectedSet = new Set(selectedOptions);
+      return targetAnswers.every(ans => selectedSet.has(ans));
+    }
+
+    if (currentQuestion.type === 'NAT') {
+      const userVal = parseFloat(natAnswer.trim());
+      if (isNaN(userVal)) return false;
+
+      const targetNum = parseFloat(targetAnswers[0]);
+      if (!isNaN(targetNum)) {
+        return Math.abs(userVal - targetNum) < 0.01;
+      }
+    }
+
+    return false;
+  }, [currentQuestion, isSubmitted, selectedOptions, targetAnswers, natAnswer]);
+
+  /**
+   * Synchronous state transition helper to eliminate render phase race conditions
+   * (fixes the UI color flash on question changes).
+   */
+  const goToQuestion = useCallback((index: number) => {
+    setSelectedOptions([]);
+    setNatAnswer('');
+    setIsSubmitted(false);
+    setCurrentIndex(index);
+  }, []);
+
+  const handleNextQuestion = useCallback(async () => {
+    const nextIdx = currentIndex + 1;
+
+    if (nextIdx < questions.length) {
+      goToQuestion(nextIdx);
+      return;
+    }
+
+    if (hasNextPage && !isFetchingNextPage) {
+      const result = await fetchNextPage();
+      const newQuestions = result.data?.pages.flatMap(p => p.data) || [];
+
+      if (nextIdx < newQuestions.length) {
+        goToQuestion(nextIdx);
+      }
+    }
+  }, [
+    currentIndex,
+    questions.length,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    goToQuestion,
+  ]);
+
+  const handleOptionPress = useCallback(
+    (optionKey: string) => {
+      if (isSubmitted || !currentQuestion) return;
+
+      if (currentQuestion.type === 'MCQ') {
+        setSelectedOptions([optionKey]);
+        setIsSubmitted(true);
+      } else if (currentQuestion.type === 'MSQ') {
+        setSelectedOptions(prev =>
+          prev.includes(optionKey)
+            ? prev.filter(k => k !== optionKey)
+            : [...prev, optionKey],
+        );
+      }
+    },
+    [isSubmitted, currentQuestion],
+  );
+
+  const handleSubmit = useCallback(() => {
+    if (isSubmitted) return;
+    setIsSubmitted(true);
+  }, [isSubmitted]);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color="#0000ff" />
+        <Text className="mt-2 text-tertiary font-mono">
+          Loading Practice Queue...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (isError || !currentQuestion) {
+    return (
+      <SafeAreaView className="flex-1 bg-background items-center justify-center p-6">
+        <Text className="text-red-600 font-bold mb-4">
+          Failed to load questions.
+        </Text>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          className="bg-primary px-4 py-2 rounded"
+        >
+          <Text className="text-white">Go Back</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={{ flex: 1 }} className="bg-background flex-col">
       <ScrollView
         className="flex-1 w-full max-w-[720px] mx-auto"
         contentContainerStyle={{
-          paddingTop: 32,
-          paddingBottom: 120,
+          paddingTop: 24,
+          paddingBottom: 140,
           paddingHorizontal: 24,
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Progress Indicator */}
-        <View className="mb-6">
-          <View className="flex-row justify-between items-end mb-2">
-            <Text className="font-mono text-[12px] leading-[16px] tracking-wider text-on-surface-variant uppercase font-medium">
-              Question 5 of 20
-            </Text>
-            <Text className="font-mono text-[12px] leading-[16px] tracking-wider text-on-surface-variant font-medium">
-              25%
-            </Text>
-          </View>
-          <View className="w-full bg-surface-variant h-2 rounded-full overflow-hidden">
-            <View className="bg-primary-container h-2 w-1/4 rounded-full" />
-          </View>
-        </View>
-
-        {/* Question Context Tags */}
+        {/* METADATA TAGS */}
         <View className="flex-row flex-wrap gap-2 mb-4">
-          {['2023', 'Advanced', 'Physics'].map(tag => (
-            <View
-              key={tag}
-              className="border border-surface-variant px-2 py-1 rounded"
-            >
-              <Text className="font-mono text-[12px] leading-[16px] tracking-wider text-on-surface-variant uppercase font-medium">
-                {tag}
-              </Text>
-            </View>
-          ))}
+          <View className="border border-surface-variant px-2 py-1 rounded">
+            <Text className="font-mono text-[12px] text-on-surface-variant uppercase">
+              {currentQuestion.branch}
+            </Text>
+          </View>
+          <View className="bg-surface-container px-2 py-1 rounded border border-surface-variant">
+            <Text className="font-mono text-[12px] font-bold text-on-surface uppercase">
+              {currentQuestion.type}
+            </Text>
+          </View>
         </View>
 
-        {/* Question Text */}
-        <View className="mb-10">
-          <Text className="font-inter font-bold text-[24px] leading-[32px] md:text-[32px] md:leading-[40px] tracking-tight text-on-surface">
-            A particle of mass m moves in a one-dimensional potential V(x) =
-            kx²/2. If it is subjected to a constant force F₀, what is the new
-            equilibrium position?
+        {/* QUESTION DISPLAY */}
+        <View className="mb-8">
+          <Text className="text-on-surface text-[16px] leading-6">
+            {currentQuestion.questionLatex}
           </Text>
         </View>
 
-        {/* Multiple Choice Options */}
-        <View className="gap-4">
-          {options.map(option => {
-            const isSelected = selectedOption === option.id;
+        {/* MCQ & MSQ OPTIONS */}
+        {(currentQuestion.type === 'MCQ' || currentQuestion.type === 'MSQ') && (
+          <View className="gap-3 mb-6">
+            {currentQuestion.options?.map((option, idx) => {
+              const optionKey = option.key || String.fromCharCode(65 + idx);
+              return (
+                <AnswerOption
+                  key={optionKey}
+                  option={option}
+                  optionKey={optionKey}
+                  selected={selectedOptions.includes(optionKey)}
+                  submitted={isSubmitted}
+                  target={targetAnswers.includes(optionKey)}
+                  type={currentQuestion.type as 'MCQ' | 'MSQ'}
+                  onPress={handleOptionPress}
+                />
+              );
+            })}
+          </View>
+        )}
 
-            return (
-              <Pressable
-                key={option.id}
-                onPress={() => setSelectedOption(option.id)}
-                className={`bg-surface border rounded-lg p-6 transition-all flex-row items-start gap-4 active:border-on-surface-variant
-                  ${
-                    isSelected
-                      ? 'border-[2px] border-on-surface -translate-y-0.5'
-                      : 'border-surface-variant'
-                  }`}
-              >
-                <View
-                  className={`w-8 h-8 rounded-full border flex items-center justify-center
-                    ${
-                      isSelected
-                        ? 'bg-on-surface border-on-surface'
-                        : 'border-surface-variant bg-transparent'
-                    }`}
-                >
-                  <Text
-                    className={`font-mono text-[12px] font-medium
-                      ${isSelected ? 'text-surface' : 'text-on-surface'}`}
-                  >
-                    {option.id}
-                  </Text>
-                </View>
-                <View className="pt-1 flex-1">
-                  <Text className="font-inter text-[18px] leading-[28px] text-on-surface">
-                    {option.text}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* NAT NUMERICAL INPUT */}
+        {currentQuestion.type === 'NAT' && (
+          <View className="mb-6 gap-2">
+            <Text className="font-mono text-[14px] text-on-surface-variant">
+              Enter Numerical Answer:
+            </Text>
+            <TextInput
+              keyboardType="numeric"
+              editable={!isSubmitted}
+              value={natAnswer}
+              onChangeText={setNatAnswer}
+              placeholder="e.g. 12.5"
+              className={`border p-4 rounded-lg font-mono text-[18px] bg-surface ${
+                isSubmitted
+                  ? isCorrect
+                    ? 'border-green-600 bg-green-500/10'
+                    : 'border-red-600 bg-red-500/10'
+                  : 'border-surface-variant text-on-surface'
+              }`}
+            />
+          </View>
+        )}
+
+        {/* SUBMIT BUTTON FOR MSQ & NAT */}
+        {!isSubmitted &&
+          (currentQuestion.type === 'MSQ' ||
+            currentQuestion.type === 'NAT') && (
+            <Pressable
+              onPress={handleSubmit}
+              disabled={
+                currentQuestion.type === 'MSQ'
+                  ? selectedOptions.length === 0
+                  : !natAnswer.trim()
+              }
+              className={`w-full py-4 rounded-lg items-center mb-6 ${
+                (currentQuestion.type === 'MSQ' &&
+                  selectedOptions.length > 0) ||
+                (currentQuestion.type === 'NAT' && natAnswer.trim())
+                  ? 'bg-primary'
+                  : 'bg-surface-variant opacity-50'
+              }`}
+            >
+              <Text className="text-white font-semibold text-[16px]">
+                Submit Answer
+              </Text>
+            </Pressable>
+          )}
+
+        {isSubmitted && (
+          <SolutionDetail
+            isCorrect={isCorrect}
+            question={currentQuestion}
+            userSelection={selectedOptions}
+            natAnswer={natAnswer}
+            targetAnswers={targetAnswers}
+            onNextQuestion={handleNextQuestion}
+          />
+        )}
       </ScrollView>
 
-      {/* BOTTOM ACTION BAR */}
-      <View className="absolute bottom-0 left-0 w-full bg-surface border-t border-surface-variant p-4 z-20 pb-safe">
-        <View className="max-w-[720px] w-full mx-auto flex-row justify-between items-center gap-4 px-2">
-          <Pressable className="px-6 py-3 border border-on-surface rounded active:bg-surface-container-low transition-colors">
-            <Text className="font-inter font-semibold text-[14px] leading-[20px] tracking-wide text-on-surface">
-              Previous
-            </Text>
-          </Pressable>
-
-          <Pressable className="px-8 py-3 bg-primary-container rounded active:scale-95 active:opacity-90 transition-all flex-row items-center gap-2">
-            <Text className="font-inter font-semibold text-[14px] leading-[20px] tracking-wide text-on-surface">
-              Next Question
-            </Text>
-            <Text className="text-on-surface text-lg leading-none mt-0.5">
-              →
-            </Text>
-          </Pressable>
+      {/* FOOTER NAVIGATION */}
+      {isSubmitted && (
+        <View className="absolute bottom-0 left-0 w-full bg-surface border-t border-surface-variant p-4 z-20 pb-safe">
+          <View className="max-w-[720px] w-full mx-auto flex-row justify-end items-center gap-4 px-2">
+            <Pressable
+              onPress={handleNextQuestion}
+              className="px-8 py-3 bg-primary-container rounded active:scale-95 flex-row items-center gap-2"
+            >
+              <Text className="font-inter font-semibold text-[14px] text-on-surface">
+                Next Question
+              </Text>
+              <Text className="text-on-surface text-lg leading-none mt-0.5">
+                <MoveRight />
+              </Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
+      )}
     </SafeAreaView>
   );
 };
