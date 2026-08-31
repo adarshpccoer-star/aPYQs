@@ -1,11 +1,13 @@
 import { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Question } from '../../api/question';
+import LatexView from '../../components/latex';
 
 interface QuestionCardProps {
   item: Question;
   onPress: (item: Question) => void;
 }
+
 export const QuestionCard = memo(({ item, onPress }: QuestionCardProps) => {
   return (
     <Pressable
@@ -33,12 +35,7 @@ export const QuestionCard = memo(({ item, onPress }: QuestionCardProps) => {
           </View>
         </View>
 
-        <Text
-          numberOfLines={2}
-          className="font-inter font-semibold text-[16px] leading-[22px] text-on-surface"
-        >
-          {item.questionLatex}
-        </Text>
+        <LatexView latex={item.questionLatex} fontSize={14} />
       </View>
 
       <View className="flex-row items-center justify-between">

@@ -103,23 +103,6 @@ const BrowseScreen = () => {
       </View>
 
       <FlatList
-        data={isQuestionsLoading || isError ? [] : filteredQuestions}
-        renderItem={renderQuestion}
-        keyExtractor={keyExtractor}
-        ListHeaderComponent={ListHeaderComponent}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingTop: 24,
-          paddingBottom: 100,
-        }}
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews
-        initialNumToRender={8}
-        maxToRenderPerBatch={6}
-        windowSize={7}
-        updateCellsBatchingPeriod={50}
-      />
-      <FlatList
         data={filteredQuestions}
         renderItem={renderQuestion}
         ListHeaderComponent={
@@ -143,45 +126,6 @@ const BrowseScreen = () => {
           />
         }
       />
-
-      <View className="absolute bottom-0 left-0 right-0 h-16 bg-surface border-t border-surface-variant flex-row justify-around items-center px-4">
-        <Pressable
-          className="items-center"
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Text className="text-lg">🏠</Text>
-          <Text className="font-mono text-[12px] text-on-surface mt-0.5">
-            Home
-          </Text>
-        </Pressable>
-
-        <Pressable className="items-center">
-          <Text className="text-lg">🔍</Text>
-          <Text className="font-mono text-[12px] font-bold text-primary mt-0.5">
-            Browse
-          </Text>
-        </Pressable>
-
-        <Pressable
-          className="items-center"
-          onPress={() => navigation.navigate('History')}
-        >
-          <Text className="text-lg">📜</Text>
-          <Text className="font-mono text-[12px] text-on-surface mt-0.5">
-            History
-          </Text>
-        </Pressable>
-
-        <Pressable
-          className="items-center"
-          onPress={() => navigation.navigate('Profile')}
-        >
-          <Text className="text-lg">👤</Text>
-          <Text className="font-mono text-[12px] text-on-surface mt-0.5">
-            Profile
-          </Text>
-        </Pressable>
-      </View>
     </SafeAreaView>
   );
 };
