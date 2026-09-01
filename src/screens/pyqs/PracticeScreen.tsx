@@ -1,5 +1,4 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
-
 import {
   View,
   Text,
@@ -7,14 +6,20 @@ import {
   Pressable,
   TextInput,
   ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useRoute, RouteProp } from '@react-navigation/native';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { MoveRight } from 'lucide-react-native';
+import { MoveLeft, MoveRight } from 'lucide-react-native';
 
-import { fetchQuestions, Question, QuestionOption } from '../../api/question';
+import {
+  fetchQuestions,
+  Question,
+  QuestionOption,
+  saveQuestionProgress,
+} from '../../api/question';
 import SolutionDetail from './SolutionDetail';
 import LatexView from '../../components/latex';
 
@@ -23,10 +28,17 @@ export type RootStackParamList = {
   Practice: {
     branch: string;
     subject: string;
+    initialQuestionId?: string; // <-- Add optional param
   };
 };
 
 type PracticeRouteProp = RouteProp<RootStackParamList, 'Practice'>;
+
+type AttemptState = {
+  selectedOptions: string[];
+  natAnswer: string;
+  isSubmitted: boolean;
+};
 
 interface AnswerOptionProps {
   option: QuestionOption;
@@ -103,16 +115,11 @@ const AnswerOption = memo(
 
 AnswerOption.displayName = 'AnswerOption';
 
-const PracticeScreen = () => {
-  const navigation = useNavigation<any>();
+const PracticeScreen = ({ navigation }: any) => {
   const route = useRoute<PracticeRouteProp>();
-
-  const { branch, subject } = route.params;
-
+  const { branch, subject, initialQuestionId } = route.params; // <-- Extract param
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
-  const [natAnswer, setNatAnswer] = useState<string>('');
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [attempts, setAttempts] = useState<Record<number, AttemptState>>({});
 
   const {
     data,
@@ -123,47 +130,67 @@ const PracticeScreen = () => {
     isError,
   } = useInfiniteQuery({
     queryKey: ['practiceQuestions', branch, subject],
-
     queryFn: ({ pageParam }) => fetchQuestions(branch, subject, pageParam, 20),
-
     initialPageParam: 1,
-
-    getNextPageParam: lastPage => {
-      if (!lastPage.pagination.hasNextPage) {
-        return undefined;
-      }
-
-      return lastPage.pagination.page + 1;
-    },
+    getNextPageParam: lastPage =>
+      lastPage.pagination.hasNextPage
+        ? lastPage.pagination.page + 1
+        : undefined,
   });
 
   const questions: Question[] = useMemo(
     () => (data ? data.pages.flatMap(p => p.data) : []),
     [data],
   );
+  React.useEffect(() => {
+    if (initialQuestionId && questions.length > 0) {
+      const targetIndex = questions.findIndex(q => {
+        const qId = typeof q._id === 'object' ? q._id.$oid : q._id;
+        return qId === initialQuestionId;
+      });
 
+      if (targetIndex !== -1) {
+        setCurrentIndex(targetIndex);
+      }
+    }
+  }, [initialQuestionId, questions]);
   const currentQuestion = questions[currentIndex];
+
+  const currentAttempt = attempts[currentIndex] || {
+    selectedOptions: [],
+    natAnswer: '',
+    isSubmitted: false,
+  };
+
+  const { selectedOptions, natAnswer, isSubmitted } = currentAttempt;
+
+  const updateAttempt = useCallback(
+    (updater: (prev: AttemptState) => AttemptState) => {
+      setAttempts(prev => ({
+        ...prev,
+        [currentIndex]: updater(
+          prev[currentIndex] || {
+            selectedOptions: [],
+            natAnswer: '',
+            isSubmitted: false,
+          },
+        ),
+      }));
+    },
+    [currentIndex],
+  );
 
   const targetAnswers: string[] = useMemo(() => {
     if (!currentQuestion) return [];
-
-    if (Array.isArray(currentQuestion.answer)) {
-      return currentQuestion.answer;
-    }
-
-    if (currentQuestion.answer) {
-      return [String(currentQuestion.answer)];
-    }
-
+    if (Array.isArray(currentQuestion.answer)) return currentQuestion.answer;
+    if (currentQuestion.answer) return [String(currentQuestion.answer)];
     return (
       currentQuestion.options?.filter(o => o.correct).map(o => o.key) || []
     );
   }, [currentQuestion]);
 
   const isCorrect = useMemo(() => {
-    if (!currentQuestion || !isSubmitted) {
-      return false;
-    }
+    if (!currentQuestion || !isSubmitted) return false;
 
     if (currentQuestion.type === 'MCQ') {
       return (
@@ -173,55 +200,32 @@ const PracticeScreen = () => {
     }
 
     if (currentQuestion.type === 'MSQ') {
-      if (selectedOptions.length !== targetAnswers.length) {
-        return false;
-      }
-
+      if (selectedOptions.length !== targetAnswers.length) return false;
       const selectedSet = new Set(selectedOptions);
-
       return targetAnswers.every(ans => selectedSet.has(ans));
     }
 
     if (currentQuestion.type === 'NAT') {
       const userVal = parseFloat(natAnswer.trim());
-
-      if (isNaN(userVal)) {
-        return false;
-      }
-
+      if (isNaN(userVal)) return false;
       const targetNum = parseFloat(targetAnswers[0]);
-
-      if (!isNaN(targetNum)) {
-        return Math.abs(userVal - targetNum) < 0.01;
-      }
+      if (!isNaN(targetNum)) return Math.abs(userVal - targetNum) < 0.01;
     }
 
     return false;
   }, [currentQuestion, isSubmitted, selectedOptions, targetAnswers, natAnswer]);
 
-  const goToQuestion = useCallback((index: number) => {
-    setSelectedOptions([]);
-    setNatAnswer('');
-    setIsSubmitted(false);
-    setCurrentIndex(index);
-  }, []);
-
-  const handleNextQuestion = useCallback(async () => {
+  const handleNextQuestion = useCallback(() => {
     const nextIdx = currentIndex + 1;
-
     if (nextIdx < questions.length) {
-      goToQuestion(nextIdx);
-      return;
-    }
-
-    if (hasNextPage && !isFetchingNextPage) {
-      const result = await fetchNextPage();
-
-      const newQuestions = result.data?.pages.flatMap(p => p.data) || [];
-
-      if (nextIdx < newQuestions.length) {
-        goToQuestion(nextIdx);
-      }
+      setCurrentIndex(nextIdx);
+    } else if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage().then(result => {
+        const newQuestions = result.data?.pages.flatMap(p => p.data) || [];
+        if (nextIdx < newQuestions.length) {
+          setCurrentIndex(nextIdx);
+        }
+      });
     }
   }, [
     currentIndex,
@@ -229,42 +233,62 @@ const PracticeScreen = () => {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-    goToQuestion,
   ]);
+
+  const handlePrevQuestion = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+    }
+  }, [currentIndex]);
 
   const handleOptionPress = useCallback(
     (optionKey: string) => {
-      if (isSubmitted || !currentQuestion) {
-        return;
-      }
+      if (isSubmitted || !currentQuestion) return;
 
       if (currentQuestion.type === 'MCQ') {
-        setSelectedOptions([optionKey]);
-        setIsSubmitted(true);
+        updateAttempt(() => ({
+          selectedOptions: [optionKey],
+          natAnswer: '',
+          isSubmitted: false,
+        }));
       } else if (currentQuestion.type === 'MSQ') {
-        setSelectedOptions(prev =>
-          prev.includes(optionKey)
-            ? prev.filter(k => k !== optionKey)
-            : [...prev, optionKey],
-        );
+        updateAttempt(prev => ({
+          ...prev,
+          selectedOptions: prev.selectedOptions.includes(optionKey)
+            ? prev.selectedOptions.filter(k => k !== optionKey)
+            : [...prev.selectedOptions, optionKey],
+        }));
       }
     },
-    [isSubmitted, currentQuestion],
+    [isSubmitted, currentQuestion, updateAttempt],
   );
 
-  const handleSubmit = useCallback(() => {
-    if (isSubmitted) {
-      return;
+  const handleSubmit = useCallback(async () => {
+    if (isSubmitted || !currentQuestion) return;
+
+    // 1. Mark as submitted locally first
+    updateAttempt(prev => ({ ...prev, isSubmitted: true }));
+
+    // 2. Prepare payload
+    const payload = {
+      questionId: currentQuestion._id.toString(),
+      solved: true,
+      correct: isCorrect,
+    };
+
+    // 3. Send progress to backend
+    try {
+      // Pass session token if authentication requires Bearer header
+      await saveQuestionProgress(payload /*, sessionToken */);
+      console.log('Progress saved successfully');
+    } catch (error) {
+      console.error('Failed to save progress to server:', error);
     }
-
-    setIsSubmitted(true);
-  }, [isSubmitted]);
-
+  }, [isSubmitted, currentQuestion, isCorrect, updateAttempt]);
   if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator size="large" color="#0000ff" />
-
         <Text className="mt-2 text-tertiary font-mono">
           Loading Practice Queue...
         </Text>
@@ -278,7 +302,6 @@ const PracticeScreen = () => {
         <Text className="text-red-600 font-bold mb-4">
           Failed to load questions.
         </Text>
-
         <Pressable
           onPress={() => navigation.goBack()}
           className="bg-primary px-4 py-2 rounded"
@@ -292,6 +315,7 @@ const PracticeScreen = () => {
   return (
     <SafeAreaView style={{ flex: 1 }} className="bg-background flex-col">
       <ScrollView
+        key={`question-scroll-${currentIndex}`}
         className="flex-1 w-full max-w-[720px] mx-auto"
         contentContainerStyle={{
           paddingTop: 24,
@@ -301,14 +325,12 @@ const PracticeScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* METADATA TAGS */}
-
         <View className="flex-row flex-wrap gap-2 mb-4">
           <View className="border border-surface-variant px-2 py-1 rounded">
             <Text className="font-mono text-[12px] text-on-surface-variant uppercase">
               {currentQuestion.branch}
             </Text>
           </View>
-
           <View className="bg-surface-container px-2 py-1 rounded border border-surface-variant">
             <Text className="font-mono text-[12px] font-bold text-on-surface uppercase">
               {currentQuestion.type}
@@ -317,21 +339,18 @@ const PracticeScreen = () => {
         </View>
 
         {/* QUESTION */}
-
         <View className="mb-8">
           <LatexView latex={currentQuestion.questionLatex} fontSize={16} />
         </View>
 
-        {/* MCQ & MSQ OPTIONS */}
-
+        {/* OPTIONS */}
         {(currentQuestion.type === 'MCQ' || currentQuestion.type === 'MSQ') && (
           <View className="gap-3 mb-6">
             {currentQuestion.options?.map((option, idx) => {
               const optionKey = option.key || String.fromCharCode(65 + idx);
-
               return (
                 <AnswerOption
-                  key={optionKey}
+                  key={`${currentIndex}-${optionKey}`}
                   option={option}
                   optionKey={optionKey}
                   selected={selectedOptions.includes(optionKey)}
@@ -346,18 +365,18 @@ const PracticeScreen = () => {
         )}
 
         {/* NAT NUMERICAL INPUT */}
-
         {currentQuestion.type === 'NAT' && (
           <View className="mb-6 gap-2">
             <Text className="font-mono text-[14px] text-on-surface-variant">
               Enter Numerical Answer:
             </Text>
-
             <TextInput
               keyboardType="numeric"
               editable={!isSubmitted}
               value={natAnswer}
-              onChangeText={setNatAnswer}
+              onChangeText={val =>
+                updateAttempt(prev => ({ ...prev, natAnswer: val }))
+              }
               placeholder="e.g. 12.5"
               className={`border p-4 rounded-lg font-mono text-[18px] bg-surface ${
                 isSubmitted
@@ -371,35 +390,34 @@ const PracticeScreen = () => {
         )}
 
         {/* SUBMIT BUTTON */}
-
-        {!isSubmitted &&
-          (currentQuestion.type === 'MSQ' ||
-            currentQuestion.type === 'NAT') && (
-            <Pressable
-              onPress={handleSubmit}
-              disabled={
-                currentQuestion.type === 'MSQ'
-                  ? selectedOptions.length === 0
-                  : !natAnswer.trim()
-              }
-              className={`w-full py-4 rounded-lg items-center mb-6 ${
-                (currentQuestion.type === 'MSQ' &&
-                  selectedOptions.length > 0) ||
-                (currentQuestion.type === 'NAT' && natAnswer.trim())
-                  ? 'bg-primary'
-                  : 'bg-surface-variant opacity-50'
-              }`}
-            >
-              <Text className="text-white font-semibold text-[16px]">
-                Submit Answer
-              </Text>
-            </Pressable>
-          )}
+        {!isSubmitted && (
+          <Pressable
+            onPress={handleSubmit}
+            disabled={
+              currentQuestion.type === 'NAT'
+                ? !natAnswer.trim()
+                : selectedOptions.length === 0
+            }
+            className={`w-full py-4 rounded-lg items-center mb-6 ${
+              (
+                currentQuestion.type === 'NAT'
+                  ? natAnswer.trim()
+                  : selectedOptions.length > 0
+              )
+                ? 'bg-primary'
+                : 'bg-surface-variant opacity-50'
+            }`}
+          >
+            <Text className="text-white font-semibold text-[16px]">
+              Submit Answer
+            </Text>
+          </Pressable>
+        )}
 
         {/* SOLUTION */}
-
         {isSubmitted && (
           <SolutionDetail
+            key={`solution-detail-${currentIndex}`}
             isCorrect={isCorrect}
             question={currentQuestion}
             userSelection={selectedOptions}
@@ -411,25 +429,56 @@ const PracticeScreen = () => {
       </ScrollView>
 
       {/* FOOTER NAVIGATION */}
+      <View className="absolute bottom-0 left-0 w-full bg-surface border-t border-surface-variant p-4 z-20 pb-safe">
+        <View className="max-w-[720px] w-full mx-auto flex-row justify-between items-center gap-4 px-2">
+          {/* Previous Button */}
+          <Pressable
+            onPress={handlePrevQuestion}
+            disabled={currentIndex === 0}
+            style={[
+              styles.navButton,
+              currentIndex === 0 ? styles.disabledBtn : styles.activeBtn,
+            ]}
+          >
+            <MoveLeft size={18} color="#111111" />
+            <Text className="font-inter font-semibold text-[14px] text-on-surface">
+              Previous
+            </Text>
+          </Pressable>
 
-      {isSubmitted && (
-        <View className="absolute bottom-0 left-0 w-full bg-surface border-t border-surface-variant p-4 z-20 pb-safe">
-          <View className="max-w-[720px] w-full mx-auto flex-row justify-end items-center gap-4 px-2">
-            <Pressable
-              onPress={handleNextQuestion}
-              className="px-8 py-3 bg-primary-container rounded active:scale-95 flex-row items-center gap-2"
-            >
-              <Text className="font-inter font-semibold text-[14px] text-on-surface">
-                Next Question
-              </Text>
-
-              <MoveRight size={18} color="#111111" />
-            </Pressable>
-          </View>
+          {/* Next Button */}
+          <Pressable
+            onPress={handleNextQuestion}
+            disabled={!hasNextPage && currentIndex >= questions.length - 1}
+            style={styles.navButton}
+            className="bg-primary-container"
+          >
+            <Text className="font-inter font-semibold text-[14px] text-on-surface">
+              Next
+            </Text>
+            <MoveRight size={18} color="#111111" />
+          </Pressable>
         </View>
-      )}
+      </View>
     </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  navButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  disabledBtn: {
+    opacity: 0.3,
+  },
+  activeBtn: {
+    opacity: 1,
+  },
+});
 
 export default PracticeScreen;

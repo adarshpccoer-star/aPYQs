@@ -1,6 +1,5 @@
 import React, { memo } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { Check, X } from 'lucide-react-native';
 import { Question } from '../../api/question';
 import LatexView from '../../components/latex';
@@ -13,8 +12,6 @@ interface SolutionViewProps {
   targetAnswers: string[];
   onNextQuestion: () => void;
 }
-
-/* ... existing imports ... */
 
 const SolutionDetail = memo((props: SolutionViewProps) => {
   const correctAnswerLatex =
@@ -41,13 +38,13 @@ const SolutionDetail = memo((props: SolutionViewProps) => {
       <View className="items-center justify-center text-center py-4 mb-2">
         <View
           className={`w-20 h-20 rounded-full items-center justify-center mb-3 ${
-            props.isCorrect ? 'bg-primary-container/20' : 'bg-red-500/20'
+            props.isCorrect ? 'bg-green-500/20' : 'bg-red-500/20'
           }`}
         >
           {props.isCorrect ? (
-            <Check size={36} className="text-primary" />
+            <Check size={36} color="#16a34a" />
           ) : (
-            <X size={36} className="text-red-600" />
+            <X size={36} color="#dc2626" />
           )}
         </View>
         <Text className="font-inter text-[32px] leading-[40px] font-extrabold text-on-surface mb-1">
@@ -83,14 +80,14 @@ const SolutionDetail = memo((props: SolutionViewProps) => {
         <View
           className={`border-l-4 p-4 rounded-r ${
             props.isCorrect
-              ? 'border-primary bg-surface-container-low'
+              ? 'border-green-600 bg-surface-container-low'
               : 'border-red-600 bg-red-500/10'
           }`}
         >
           <View className="flex-row items-start gap-2">
             <Text
               className={`font-bold text-base mt-0.5 ${
-                props.isCorrect ? 'text-primary' : 'text-red-600'
+                props.isCorrect ? 'text-green-600' : 'text-red-600'
               }`}
             >
               {props.isCorrect ? '✓' : '✕'}
@@ -155,14 +152,14 @@ const SolutionDetail = memo((props: SolutionViewProps) => {
 
       {/* ACTIONS */}
       <View className="flex-col sm:flex-row gap-4 pt-6 border-t border-surface-variant">
-        <Pressable className="bg-surface border border-on-surface py-3 px-6 rounded-none flex-row justify-center items-center gap-2 active:bg-surface-container-low">
+        <Pressable className="bg-surface border border-on-surface py-3 px-6 flex-row justify-center items-center gap-2 active:bg-surface-container-low">
           <Text className="text-on-surface font-semibold text-[14px] leading-[20px]">
             📌 Save for Review
           </Text>
         </Pressable>
         <Pressable
           onPress={props.onNextQuestion}
-          className="bg-on-surface py-3 px-6 rounded-none flex-row justify-center items-center gap-2 active:opacity-90 shadow-sm"
+          className="bg-on-surface py-3 px-6 flex-row justify-center items-center gap-2"
         >
           <Text className="text-on-primary font-semibold text-[14px] leading-[20px]">
             Next Question →

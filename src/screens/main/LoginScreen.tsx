@@ -11,6 +11,7 @@ const KEYCHAIN_SERVICE = 'com.apyqs.auth';
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
+
   const navigation = useNavigation<any>();
 
   const user = useAuthStore(state => state.user);
@@ -18,19 +19,26 @@ export default function LoginScreen() {
   const setAuth = useAuthStore(state => state.setAuth);
   const logout = useAuthStore(state => state.logout);
 
-  // Redirect automatically when user authenticates
   useEffect(() => {
     if (!isRestoring && user) {
-      navigation.navigate('Profile');
+      const profileComplete =
+        !!user.branchCode &&
+        !!user.branchName &&
+        user.yearOfGate !== null &&
+        user.yearOfGate !== undefined;
+
+      navigation.navigate(profileComplete ? 'Profile' : 'SignupForm');
     }
   }, [user, isRestoring, navigation]);
 
   const handleGithubLogin = async () => {
     if (loading) return;
+
     setLoading(true);
 
     try {
       const available = await InAppBrowser.isAvailable();
+
       if (!available) {
         throw new Error('InAppBrowser is not available');
       }
@@ -52,22 +60,29 @@ export default function LoginScreen() {
 
       const callbackUrl = new URL(result.url);
       const code = callbackUrl.searchParams.get('code');
-      if (!code) throw new Error('No mobile authentication code received');
+
+      if (!code) {
+        throw new Error('No mobile authentication code received');
+      }
 
       const response = await fetch(`${API_URL}/api/mobile/exchange`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ code }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
+
         throw new Error(
           `Exchange failed with status ${response.status}: ${errorText}`,
         );
       }
 
       const data = await response.json();
+
       const { sessionToken, user: authUser } = data;
 
       if (!sessionToken || !authUser) {
@@ -78,6 +93,10 @@ export default function LoginScreen() {
         service: KEYCHAIN_SERVICE,
       });
 
+      // This updates Zustand.
+      // The useEffect above will then decide:
+      // Profile -> if complete
+      // SignupForm -> if incomplete
       setAuth(authUser);
     } catch (error) {
       console.error('AUTH: GitHub login failed:', error);
@@ -89,7 +108,11 @@ export default function LoginScreen() {
   if (isRestoring) {
     return (
       <SafeAreaView
-        style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
       >
         <ActivityIndicator size="large" />
         <Text style={{ marginTop: 12 }}>Restoring session...</Text>
@@ -98,40 +121,50 @@ export default function LoginScreen() {
   }
 
   return (
-    <>
-      <SafeAreaView style={{ flex: 1, padding: 24, justifyContent: 'center' }}>
-        {user ? (
-          <View style={{ alignItems: 'center', gap: 12 }}>
-            {user.image && (
-              <Image
-                source={{ uri: user.image }}
-                style={{ width: 80, height: 80, borderRadius: 40 }}
-              />
-            )}
+    <SafeAreaView
+      style={{
+        flex: 1,
+        padding: 24,
+        justifyContent: 'center',
+      }}
+    >
+      {user ? (
+        <View style={{ alignItems: 'center', gap: 12 }}>
+          {user.image && (
+            <Image
+              source={{ uri: user.image }}
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 40,
+              }}
+            />
+          )}
 
-            <Text style={{ fontSize: 20, fontWeight: 'bold' }}>
-              {user.name || 'GitHub User'}
-            </Text>
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: 'bold',
+            }}
+          >
+            {user.name || 'GitHub User'}
+          </Text>
 
-            <Text style={{ color: '#666' }}>{user.email}</Text>
+          <Text style={{ color: '#666' }}>{user.email}</Text>
 
-            <View style={{ marginTop: 24 }}>
-              <Button title="Logout" onPress={logout} color="#FF3B30" />
-            </View>
+          <View style={{ marginTop: 24 }}>
+            <Button title="Logout" onPress={logout} color="#FF3B30" />
           </View>
-        ) : (
-          <View style={{ gap: 16 }}>
-            {loading ? (
-              <ActivityIndicator size="large" />
-            ) : (
-              <Button
-                title="Continue with GitHub"
-                onPress={handleGithubLogin}
-              />
-            )}
-          </View>
-        )}
-      </SafeAreaView>
-    </>
+        </View>
+      ) : (
+        <View style={{ gap: 16 }}>
+          {loading ? (
+            <ActivityIndicator size="large" />
+          ) : (
+            <Button title="Continue with GitHub" onPress={handleGithubLogin} />
+          )}
+        </View>
+      )}
+    </SafeAreaView>
   );
 }

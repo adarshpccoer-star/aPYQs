@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
+
 import { Question } from '../../api/question';
 import LatexView from '../../components/latex';
 
@@ -9,12 +10,20 @@ interface QuestionCardProps {
 }
 
 export const QuestionCard = memo(({ item, onPress }: QuestionCardProps) => {
+  console.log('QuestionCard', item);
+  const progressClass = item.progress
+    ? item.progress.correct
+      ? 'bg-green-50 border-green-200'
+      : 'bg-red-50 border-red-500'
+    : 'bg-surface-container-lowest border-surface-variant';
+
   return (
     <Pressable
       onPress={() => onPress(item)}
-      className="bg-surface-container-lowest border border-surface-variant rounded-lg p-6 gap-4 active:border-on-surface active:border-2"
+      className={`${progressClass} border rounded-lg p-6 gap-4 active:border-on-surface active:border-2`}
     >
       <View className="gap-2">
+        {/* Metadata */}
         <View className="flex-row items-center gap-2">
           <View className="bg-surface-container-high px-2 py-1 rounded">
             <Text className="font-mono text-[12px] leading-[16px] text-tertiary uppercase">
@@ -35,9 +44,11 @@ export const QuestionCard = memo(({ item, onPress }: QuestionCardProps) => {
           </View>
         </View>
 
+        {/* Question */}
         <LatexView latex={item.questionLatex} fontSize={14} />
       </View>
 
+      {/* Bottom */}
       <View className="flex-row items-center justify-between">
         <View>
           <Text className="font-inter font-semibold text-[14px] leading-[20px] text-on-surface">

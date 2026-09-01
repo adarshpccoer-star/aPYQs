@@ -1,6 +1,7 @@
 import React from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Header } from './Header';
+import { View } from 'react-native';
 
 interface ScreenLayoutProps {
   children: React.ReactNode;
@@ -14,9 +15,12 @@ export const ScreenLayout = ({
   showBack = true,
 }: ScreenLayoutProps) => {
   return (
-    <SafeAreaView style={{ flex: 1 }} className="bg-surface">
+    <SafeAreaView
+      style={{ flex: 1, marginHorizontal: 8 }}
+      className="bg-surface px-2"
+    >
       <Header title={title} />
-      {children}
+      <View className="mx-2 flex-1">{children}</View>
     </SafeAreaView>
   );
 };

@@ -8,12 +8,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 
-// Define the TypeScript interface for your props
 interface ListHeaderComponentProps {
   searchQuery: string;
   setSearchQuery: (text: string) => void;
   selectedBranch: string;
-  setSelectedBranch: (branch: string) => void;
   selectedSubject: string;
   setSelectedSubject: (subject: string) => void;
   subjectsList: string[] | undefined;
@@ -25,7 +23,7 @@ interface ListHeaderComponentProps {
   isError: boolean;
   error: unknown;
   refetch: () => void;
-  BRANCHES: string[];
+  branchName: string;
 }
 
 const ListHeaderComponent = memo(
@@ -33,7 +31,6 @@ const ListHeaderComponent = memo(
     searchQuery,
     setSearchQuery,
     selectedBranch,
-    setSelectedBranch,
     selectedSubject,
     setSelectedSubject,
     subjectsList,
@@ -45,14 +42,15 @@ const ListHeaderComponent = memo(
     isError,
     error,
     refetch,
-    BRANCHES,
+    branchName,
   }: ListHeaderComponentProps) => {
-    // <-- Typed props here
     return (
       <>
         <View className="mb-6">
           <View className="flex-row items-center bg-surface-container-lowest border-b border-surface-variant">
-            <Text className="absolute left-4 text-tertiary text-lg">🔍</Text>
+            <Text className="w-[90%] mx-auto border-black absolute left-4 text-tertiary text-lg">
+              🔍
+            </Text>
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -64,42 +62,6 @@ const ListHeaderComponent = memo(
         </View>
 
         <View className="mb-8 gap-4">
-          <FlatList
-            horizontal
-            data={BRANCHES}
-            keyExtractor={item => item}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingRight: 16,
-              gap: 8,
-              alignItems: 'center',
-            }}
-            renderItem={({ item: branch }) => {
-              const isSelected = selectedBranch === branch;
-              return (
-                <Pressable
-                  onPress={() => {
-                    setSelectedBranch(branch);
-                    setSelectedSubject('All');
-                  }}
-                  className={`px-3 py-1 rounded border ${
-                    isSelected
-                      ? 'border-2 border-primary-container bg-primary-container/10'
-                      : 'border-surface-variant bg-transparent'
-                  }`}
-                >
-                  <Text
-                    className={`font-mono text-[12px] leading-[16px] uppercase ${
-                      isSelected ? 'text-on-surface font-bold' : 'text-tertiary'
-                    }`}
-                  >
-                    {branch}
-                  </Text>
-                </Pressable>
-              );
-            }}
-          />
-
           {isSubjectsLoading ? (
             <ActivityIndicator size="small" color="#888" />
           ) : isSubjectsError ? (
@@ -147,10 +109,6 @@ const ListHeaderComponent = memo(
               }}
             />
           )}
-
-          <Text className="font-inter font-semibold text-[20px] leading-[28px] text-on-surface">
-            Available Questions ({filteredQuestionsCount})
-          </Text>
         </View>
 
         {isQuestionsLoading && (
@@ -190,5 +148,7 @@ const ListHeaderComponent = memo(
     );
   },
 );
+
+ListHeaderComponent.displayName = 'ListHeaderComponent';
 
 export default ListHeaderComponent;

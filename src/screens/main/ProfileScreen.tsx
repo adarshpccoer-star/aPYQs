@@ -1,8 +1,16 @@
 import React from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  Pressable,
+} from 'react-native';
 import { useAuthStore } from '../../store/useAuthStore';
 import { DEFAULT_AVATAR } from './HomeScreen';
 import { ScreenLayout } from '../../components/ScreenLayout';
+import { useNavigation } from '@react-navigation/native';
 
 export default function ProfileScreen() {
   const chartData = [
@@ -16,7 +24,7 @@ export default function ProfileScreen() {
   ];
   const { user } = useAuthStore();
   const date = new Date();
-
+  const navigation = useNavigation<any>();
   /* FIX: Removed redundant inner SafeAreaView since ScreenLayout provides safe area context */
   return (
     <ScreenLayout title="Profile">
@@ -35,7 +43,7 @@ export default function ProfileScreen() {
               {user?.name}
             </Text>
             <Text className="font-inter text-[18px] leading-[28px] text-on-surface-variant mt-1">
-              {user?.branch || 'Computer Science'}
+              {user?.branchName || 'Computer Science'}
             </Text>
             <View className="flex-row gap-2 mt-4">
               <View className="border border-surface-variant px-2 py-1 rounded">
@@ -50,6 +58,14 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
+          <Pressable
+            className="mt-4"
+            onPress={() => navigation.navigate('EditProfile')}
+          >
+            <Text className="font-inter font-semibold text-[16px] leading-[24px] text-indigo-600">
+              Edit Profile
+            </Text>
+          </Pressable>
         </View>
 
         {/* METRICS GRID */}
