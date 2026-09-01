@@ -1,17 +1,8 @@
-import 'dotenv/config';
-
 import crypto from 'node:crypto';
-import express from 'express';
-import cors from 'cors';
+import type { Request, Response } from 'express';
+import { fromNodeHeaders } from 'better-auth/node';
 
-import { fromNodeHeaders, toNodeHandler } from 'better-auth/node';
-
-import { auth } from './auth.js';
-import { connectToMongo } from './db/mongodb/mongo.connection.js';
-import { getquestions, getSubjects } from './controller/subject.controller.js';
-import profileRouter from './router/profile.router.js';
-import questionProgressRouter from './router/questions.router.js';
-const app = express();
+import { auth } from '../auth.js';
 
 const API_URL = process.env.BETTER_AUTH_URL!;
 
@@ -21,6 +12,16 @@ type MobileCode = {
 };
 
 const mobileCodes = new Map<string, MobileCode>();
+
+setInterval(() => {
+  const now = Date.now();
+
+  for (const [code, entry] of mobileCodes.entries()) {
+    if (now > entry.expiresAt) {
+      mobileCodes.delete(code);
+    }
+  }
+}, 30_000).unref();
 
 function createMobileCode(sessionToken: string): string {
   const code = crypto.randomBytes(32).toString('base64url');
@@ -50,26 +51,7 @@ function consumeMobileCode(code: string): string | null {
   return entry.sessionToken;
 }
 
-setInterval(() => {
-  const now = Date.now();
-
-  for (const [code, entry] of mobileCodes.entries()) {
-    if (now > entry.expiresAt) {
-      mobileCodes.delete(code);
-    }
-  }
-}, 30_000).unref();
-
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  }),
-);
-
-app.use(express.json());
-
-app.get('/api/mobile/github', async (req, res) => {
+const github = async (req: Request, res: Response) => {
   console.log('MOBILE GITHUB REQUEST:', {
     origin: req.headers.origin,
     cookies: req.headers.cookie,
@@ -114,50 +96,9 @@ app.get('/api/mobile/github', async (req, res) => {
       error: 'Failed to start GitHub OAuth',
     });
   }
-});
-app.get('/api/mobile/session', async (req, res) => {
-  try {
-    const authorization = req.headers.authorization;
+};
 
-    if (!authorization?.startsWith('Bearer ')) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-      });
-    }
-
-    const sessionToken = authorization.slice('Bearer '.length).trim();
-
-    if (!sessionToken) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-      });
-    }
-
-    const session = await auth.api.getSession({
-      headers: new Headers({
-        cookie: `better-auth.session_token=${encodeURIComponent(sessionToken)}`,
-      }),
-    });
-
-    if (!session) {
-      return res.status(401).json({
-        error: 'Invalid or expired session',
-      });
-    }
-
-    return res.status(200).json({
-      user: session.user,
-      session: session.session,
-    });
-  } catch (error) {
-    console.error('MOBILE SESSION ERROR:', error);
-
-    return res.status(500).json({
-      error: 'Failed to validate session',
-    });
-  }
-});
-app.get('/api/mobile/callback', async (req, res) => {
+const callback = async (req: Request, res: Response) => {
   console.log('MOBILE CALLBACK REQUEST:', {
     cookies: req.headers.cookie,
     userAgent: req.headers['user-agent'],
@@ -179,10 +120,6 @@ app.get('/api/mobile/callback', async (req, res) => {
       email: session.user.email,
     });
 
-    /**
-     * Extract the actual Better Auth session token from
-     * the browser cookie.
-     */
     const cookieHeader = req.headers.cookie ?? '';
 
     const sessionTokenMatch = cookieHeader.match(
@@ -215,9 +152,9 @@ app.get('/api/mobile/callback', async (req, res) => {
 
     return res.status(500).send('Mobile authentication failed');
   }
-});
-app.use('/api', profileRouter);
-app.post('/api/mobile/exchange', async (req, res) => {
+};
+
+const exchanqe = async (req: Request, res: Response) => {
   try {
     const { code } = req.body ?? {};
 
@@ -264,29 +201,6 @@ app.post('/api/mobile/exchange', async (req, res) => {
       error: 'Authentication exchange failed',
     });
   }
-});
-app.all('/api/auth/{*splat}', async (req, res) => {
-  console.log('AUTH REQUEST:', {
-    method: req.method,
-    url: req.originalUrl,
-    query: req.query,
-    cookies: req.headers.cookie,
-  });
+};
 
-  await toNodeHandler(auth)(req, res);
-
-  console.log('AUTH RESPONSE:', {
-    status: res.statusCode,
-    location: res.getHeader('location'),
-    setCookie: res.getHeader('set-cookie'),
-  });
-});
-
-app.use('/api/questionProgress', questionProgressRouter);
-app.get('/api/questions', getquestions);
-app.get('/api/subject/:branch', getSubjects);
-
-app.listen(3000, '0.0.0.0', async () => {
-  await connectToMongo();
-  console.log('APYQS server running on port 3000');
-});
+export { github, callback, exchanqe };
