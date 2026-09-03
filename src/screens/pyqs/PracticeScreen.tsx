@@ -28,7 +28,7 @@ export type RootStackParamList = {
   Practice: {
     branch: string;
     subject: string;
-    initialQuestionId?: string; // <-- Add optional param
+    initialQuestionId?: string;
   };
 };
 
@@ -117,7 +117,7 @@ AnswerOption.displayName = 'AnswerOption';
 
 const PracticeScreen = ({ navigation }: any) => {
   const route = useRoute<PracticeRouteProp>();
-  const { branch, subject, initialQuestionId } = route.params; // <-- Extract param
+  const { branch, subject, initialQuestionId } = route.params;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [attempts, setAttempts] = useState<Record<number, AttemptState>>({});
 
@@ -142,6 +142,7 @@ const PracticeScreen = ({ navigation }: any) => {
     () => (data ? data.pages.flatMap(p => p.data) : []),
     [data],
   );
+
   React.useEffect(() => {
     if (initialQuestionId && questions.length > 0) {
       const targetIndex = questions.findIndex(q => {
@@ -154,6 +155,7 @@ const PracticeScreen = ({ navigation }: any) => {
       }
     }
   }, [initialQuestionId, questions]);
+
   const currentQuestion = questions[currentIndex];
 
   const currentAttempt = attempts[currentIndex] || {
@@ -180,17 +182,31 @@ const PracticeScreen = ({ navigation }: any) => {
     [currentIndex],
   );
 
+  // Normalized to strings to prevent string vs number comparison bugs
   const targetAnswers: string[] = useMemo(() => {
     if (!currentQuestion) return [];
-    if (Array.isArray(currentQuestion.answer)) return currentQuestion.answer;
-    if (currentQuestion.answer) return [String(currentQuestion.answer)];
+
+    if (Array.isArray(currentQuestion.answer)) {
+      return currentQuestion.answer.map(String);
+    }
+
+    if (
+      currentQuestion.answer !== undefined &&
+      currentQuestion.answer !== null
+    ) {
+      return [String(currentQuestion.answer)];
+    }
+
     return (
-      currentQuestion.options?.filter(o => o.correct).map(o => o.key) || []
+      currentQuestion.options
+        ?.filter(option => option.correct)
+        .map(option => String(option.key)) || []
     );
   }, [currentQuestion]);
 
+  // Decoupled from `isSubmitted` state
   const isCorrect = useMemo(() => {
-    if (!currentQuestion || !isSubmitted) return false;
+    if (!currentQuestion) return false;
 
     if (currentQuestion.type === 'MCQ') {
       return (
@@ -200,20 +216,27 @@ const PracticeScreen = ({ navigation }: any) => {
     }
 
     if (currentQuestion.type === 'MSQ') {
-      if (selectedOptions.length !== targetAnswers.length) return false;
+      if (selectedOptions.length !== targetAnswers.length) {
+        return false;
+      }
+
       const selectedSet = new Set(selectedOptions);
-      return targetAnswers.every(ans => selectedSet.has(ans));
+      return targetAnswers.every(answer => selectedSet.has(answer));
     }
 
     if (currentQuestion.type === 'NAT') {
       const userVal = parseFloat(natAnswer.trim());
-      if (isNaN(userVal)) return false;
-      const targetNum = parseFloat(targetAnswers[0]);
-      if (!isNaN(targetNum)) return Math.abs(userVal - targetNum) < 0.01;
+      const targetVal = parseFloat(targetAnswers[0]);
+
+      if (Number.isNaN(userVal) || Number.isNaN(targetVal)) {
+        return false;
+      }
+
+      return Math.abs(userVal - targetVal) < 0.01;
     }
 
     return false;
-  }, [currentQuestion, isSubmitted, selectedOptions, targetAnswers, natAnswer]);
+  }, [currentQuestion, selectedOptions, targetAnswers, natAnswer]);
 
   const handleNextQuestion = useCallback(() => {
     const nextIdx = currentIndex + 1;
@@ -266,25 +289,30 @@ const PracticeScreen = ({ navigation }: any) => {
   const handleSubmit = useCallback(async () => {
     if (isSubmitted || !currentQuestion) return;
 
-    // 1. Mark as submitted locally first
-    updateAttempt(prev => ({ ...prev, isSubmitted: true }));
+    // Evaluated before state mutation
+    const correct = isCorrect;
 
-    // 2. Prepare payload
+    updateAttempt(prev => ({
+      ...prev,
+      isSubmitted: true,
+    }));
+
     const payload = {
       questionId: currentQuestion._id.toString(),
       solved: true,
-      correct: isCorrect,
+      correct,
     };
 
-    // 3. Send progress to backend
+    console.log('Submitting progress:', payload);
+
     try {
-      // Pass session token if authentication requires Bearer header
-      await saveQuestionProgress(payload /*, sessionToken */);
+      await saveQuestionProgress(payload);
       console.log('Progress saved successfully');
     } catch (error) {
       console.error('Failed to save progress to server:', error);
     }
   }, [isSubmitted, currentQuestion, isCorrect, updateAttempt]);
+
   if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-background items-center justify-center">

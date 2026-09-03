@@ -8,9 +8,16 @@ export type User = {
   email: string;
   name?: string | null;
   image?: string | null;
-  branch: string;
-  yearOfGate: string;
-  branchCode: string;
+
+  // Profile fields stored directly in the user table
+  branchName?: string | null;
+  branchCode?: string | null;
+  yearOfGate?: number | null;
+
+  emailVerified?: boolean;
+
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 };
 
 type AuthState = {
@@ -21,13 +28,16 @@ type AuthState = {
   setAuth: (user: User) => void;
   clearAuth: () => void;
   logout: () => Promise<void>;
+
   setLoading: (value: boolean) => void;
   setRestoring: (value: boolean) => void;
 };
 
 export const useAuthStore = create<AuthState>(set => ({
   user: null,
+
   isAuthenticated: false,
+
   isRestoring: true,
 
   setAuth: user =>

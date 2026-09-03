@@ -23,22 +23,10 @@ const BrowseScreen = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('All');
-
-  /*
-   * Use the authenticated user's branch.
-   *
-   * Example:
-   * user.branchCode = "DA"
-   * user.branchName = "Data Science and Artificial Intelligence"
-   */
   const userBranchCode = user?.branchCode ?? '';
 
   const userBranchName = user?.branchName ?? '';
 
-  /*
-   * Don't allow the screen to query questions until
-   * the authenticated user's branch is available.
-   */
   const {
     data: subjectsData,
     isLoading: isSubjectsLoading,

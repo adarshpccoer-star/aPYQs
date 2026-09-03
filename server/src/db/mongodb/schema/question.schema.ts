@@ -163,6 +163,7 @@ const questionSchema = new Schema<Question>(
 );
 
 questionSchema.index({
+  _id: 1,
   branch: 1,
   type: 1,
   mainTopic: 1,

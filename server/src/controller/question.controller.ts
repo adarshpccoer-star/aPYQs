@@ -1,9 +1,10 @@
 import type { Request, Response } from 'express';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 
 import { questionProgress } from '../db/schema.js';
 import { getMobileSession } from '../utils/get-mobile-session.js';
 import { db } from '../db/drizzle/index.js';
+import { QuestionModel } from '../db/mongodb/schema/question.schema.js';
 
 export const POST = async (req: Request, res: Response) => {
   try {
@@ -81,18 +82,47 @@ export const GET = async (req: Request, res: Response) => {
 
     const userId = mobileSession.user.id;
 
+    // 1. Fetch latest progress records for the user
     const progress = await db
       .select()
       .from(questionProgress)
-      .where(eq(questionProgress.userId, userId));
+      .where(eq(questionProgress.userId, userId))
+      .orderBy(desc(questionProgress.updatedAt))
+      .limit(5);
+
+    if (progress.length === 0) {
+      return res.status(200).json({
+        message: 'Question progress fetched successfully',
+        data: [],
+      });
+    }
+
+    // 2. Extract MongoDB question IDs
+    const questionIds = progress.map(p => p.questionId);
+
+    // 3. Fetch matching MongoDB documents using _id only
+    const questions = await QuestionModel.find({
+      _id: { $in: questionIds },
+    }).lean();
+
+    // 4. Map questions by string representation of _id
+    const questionMap = new Map(questions.map(q => [q._id.toString(), q]));
+
+    // 5. Merge progress data with corresponding question documents
+    const result = progress.map(p => ({
+      ...p,
+      question: questionMap.get(p.questionId.toString()) ?? null,
+    }));
 
     return res.status(200).json({
       message: 'Question progress fetched successfully',
-      progress,
+      data: result,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+
     console.error('Error fetching question progress:', msg);
+
     return res.status(500).json({
       error: msg,
     });
