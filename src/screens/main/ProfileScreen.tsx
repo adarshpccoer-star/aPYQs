@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,16 @@ import {
   ScrollView,
   TouchableOpacity,
   Pressable,
+  Alert,
 } from 'react-native';
 import { useAuthStore } from '../../store/useAuthStore';
 import { DEFAULT_AVATAR } from './HomeScreen';
 import { ScreenLayout } from '../../components/ScreenLayout';
 import { useNavigation } from '@react-navigation/native';
+import { Button } from 'react-native';
 
 export default function ProfileScreen() {
+  const { logout } = useAuthStore();
   const chartData = [
     { day: 'Mon', height: 'h-[30%]' },
     { day: 'Tue', height: 'h-[50%]' },
@@ -22,6 +25,20 @@ export default function ProfileScreen() {
     { day: 'Sat', height: 'h-[60%]' },
     { day: 'Sun', height: 'h-[20%]' },
   ];
+  const [loggingOut, setLoggingOut] = useState(false);
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          setLoggingOut(true);
+          await logout();
+        },
+      },
+    ]);
+  };
   const { user } = useAuthStore();
   const date = new Date();
   const navigation = useNavigation<any>();
@@ -132,6 +149,9 @@ export default function ProfileScreen() {
             ))}
           </View>
         </View>
+        <TouchableOpacity>
+          <Button onPress={handleLogout} title="Logout" />
+        </TouchableOpacity>
       </ScrollView>
     </ScreenLayout>
   );

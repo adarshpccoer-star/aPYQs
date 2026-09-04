@@ -66,8 +66,8 @@ app.use(
     credentials: true,
   }),
 );
-
 app.use(express.json());
+app.set('trust proxy', true);
 
 app.get('/api/mobile/github', async (req, res) => {
   console.log('MOBILE GITHUB REQUEST:', {
@@ -157,6 +157,22 @@ app.get('/api/mobile/session', async (req, res) => {
     });
   }
 });
+// Add this helper function near the top of index.ts
+function getCookie(req: express.Request, name: string): string | null {
+  const cookieHeader = req.headers.cookie ?? '';
+  const cookies = cookieHeader.split(';');
+
+  for (const cookie of cookies) {
+    const [key, ...valueParts] = cookie.trim().split('=');
+    if (key === name) {
+      return decodeURIComponent(valueParts.join('='));
+    }
+  }
+
+  return null;
+}
+
+// Inside app.get('/api/mobile/callback', ...)
 app.get('/api/mobile/callback', async (req, res) => {
   console.log('MOBILE CALLBACK REQUEST:', {
     cookies: req.headers.cookie,
@@ -170,7 +186,6 @@ app.get('/api/mobile/callback', async (req, res) => {
 
     if (!session) {
       console.error('MOBILE CALLBACK: NO SESSION');
-
       return res.status(401).send('Authentication session not found');
     }
 
@@ -179,40 +194,26 @@ app.get('/api/mobile/callback', async (req, res) => {
       email: session.user.email,
     });
 
-    /**
-     * Extract the actual Better Auth session token from
-     * the browser cookie.
-     */
-    const cookieHeader = req.headers.cookie ?? '';
+    // Safely check for both plain and __Secure- prefixed cookies
+    const sessionToken =
+      getCookie(req, 'better-auth.session_token') ??
+      getCookie(req, '__Secure-better-auth.session_token');
 
-    const sessionTokenMatch = cookieHeader.match(
-      /(?:^|;\s*)better-auth\.session_token=([^;]+)/,
-    );
-
-    if (!sessionTokenMatch) {
-      console.error(
-        'MOBILE CALLBACK: better-auth.session_token cookie missing',
-      );
-
+    if (!sessionToken) {
+      console.error('MOBILE CALLBACK: session token cookie missing');
       return res.status(401).send('Session token not found');
     }
 
-    const sessionToken = decodeURIComponent(sessionTokenMatch[1] as string);
-
     const code = createMobileCode(sessionToken);
-
     console.log('MOBILE CALLBACK: MOBILE CODE CREATED');
 
     const mobileCallback = new URL('apyqs://auth/callback');
-
     mobileCallback.searchParams.set('code', code);
 
     console.log('MOBILE CALLBACK REDIRECT:', mobileCallback.toString());
-
     return res.redirect(302, mobileCallback.toString());
   } catch (error) {
     console.error('MOBILE CALLBACK ERROR:', error);
-
     return res.status(500).send('Mobile authentication failed');
   }
 });
@@ -237,7 +238,9 @@ app.post('/api/mobile/exchange', async (req, res) => {
 
     const session = await auth.api.getSession({
       headers: new Headers({
-        cookie: `better-auth.session_token=${encodeURIComponent(sessionToken)}`,
+        cookie: `__Secure-better-auth.session_token=${encodeURIComponent(
+          sessionToken,
+        )}`,
       }),
     });
 
@@ -280,6 +283,28 @@ app.all('/api/auth/{*splat}', async (req, res) => {
     location: res.getHeader('location'),
     setCookie: res.getHeader('set-cookie'),
   });
+});
+app.get('/api/mobile/google', async (req, res) => {
+  const response = await auth.api.signInSocial({
+    body: {
+      provider: 'google',
+      callbackURL: `${API_URL}/api/mobile/callback`,
+    },
+    headers: req.headers as Record<string, string>,
+    asResponse: true,
+  });
+
+  const setCookie = response.headers.getSetCookie();
+
+  if (setCookie.length > 0) {
+    res.setHeader('Set-Cookie', setCookie);
+  }
+
+  const location = response.headers.get('location');
+
+  if (location) {
+    return res.redirect(302, location);
+  }
 });
 
 app.use('/api/questionProgress', questionProgressRouter);
