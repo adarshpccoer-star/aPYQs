@@ -1,10 +1,7 @@
 // src/api/questions.ts
 
-import path from 'node:path';
 import * as Keychain from 'react-native-keychain';
-
-const API_BASE_URL = 'http://192.168.1.43:3000/api';
-const KEYCHAIN_SERVICE = 'com.apyqs.auth';
+import { API_BASE_URL, KEYCHAIN_SERVICE } from '../config/env';
 
 export interface QuestionOption {
   key: string;
@@ -88,7 +85,7 @@ const getSessionToken = async (): Promise<string> => {
 export const fetchSubjects = async (
   branch: string,
 ): Promise<SubjectsResponse> => {
-  const url = `${API_BASE_URL}/subject/${encodeURIComponent(branch)}`;
+  const url = `${API_BASE_URL}/api/subject/${encodeURIComponent(branch)}`;
 
   console.log('Fetching subjects:', url);
 
@@ -126,7 +123,7 @@ export const fetchQuestions = async (
   params.append('page', page.toString());
   params.append('limit', limit.toString());
 
-  const url = `${API_BASE_URL}/questions?${params.toString()}`;
+  const url = `${API_BASE_URL}/api/questions?${params.toString()}`;
 
   console.log('Fetching questions:', url);
 
@@ -182,7 +179,7 @@ export const saveQuestionProgress = async (
 
     console.log('Posting question progress:', payload);
 
-    const response = await fetch(`${API_BASE_URL}/questionProgress`, {
+    const response = await fetch(`${API_BASE_URL}/api/questionProgress`, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -211,7 +208,7 @@ export const fetchProgress = async () => {
       console.log('session token not found');
       return;
     }
-    const response = await fetch(`${API_BASE_URL}/questionProgress`, {
+    const response = await fetch(`${API_BASE_URL}/api/questionProgress`, {
       method: 'GET',
       headers: { Authorization: `Bearer ${sessionToken}` },
     });
@@ -225,4 +222,33 @@ export const fetchProgress = async () => {
       msg,
     );
   }
+};
+// src/api/user.ts
+export interface WeeklyActivity {
+  day: string;
+  percentage: number; // e.g., 0 to 100
+}
+
+export interface UserStats {
+  streakDays: number;
+  totalSolved: number;
+  totalTarget: number;
+  accuracyPercentage: number;
+  weeklyChangePercentage: number;
+  weeklyActivity: WeeklyActivity[];
+}
+
+export const fetchUserStats = async (): Promise<UserStats> => {
+  const sessionToken = await getSessionToken();
+  if (!sessionToken) {
+    console.log('session token not found');
+  }
+  const response = await fetch(`${API_BASE_URL}/api/questionProgress/stats`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${sessionToken}` },
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch user stats');
+  }
+  return response.json();
 };

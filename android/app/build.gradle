@@ -1,6 +1,12 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+
+project.ext.envConfigFiles = [
+    debug: ".env",
+    release: ".env"
+]
+
 apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
 
 react {
@@ -16,17 +22,19 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.apyqs"
+
     defaultConfig {
         applicationId "com.apyqs"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
-        
+
         manifestPlaceholders = [
             appAuthRedirectScheme: "apyqs"
         ]
     }
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -35,10 +43,12 @@ android {
             keyPassword 'android'
         }
     }
+
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
+
         release {
             signingConfig signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds

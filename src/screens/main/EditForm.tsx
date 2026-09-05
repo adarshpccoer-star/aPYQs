@@ -11,9 +11,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import * as Keychain from 'react-native-keychain';
 import { useAuthStore } from '../../store/useAuthStore';
-
-const API_BASE_URL = 'http://192.168.1.43:3000';
-const KEYCHAIN_SERVICE = 'com.apyqs.auth';
+import { API_BASE_URL, KEYCHAIN_SERVICE } from '../../config/env';
 
 const GATE_BRANCHES = [
   { code: 'AE', name: 'Aerospace Engineering' },

@@ -12,8 +12,7 @@ import * as Keychain from 'react-native-keychain';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../../store/useAuthStore';
 
-const API_URL = 'https://boneless-voter-eatery.ngrok-free.dev';
-const KEYCHAIN_SERVICE = 'com.apyqs.auth';
+import { API_BASE_URL, KEYCHAIN_SERVICE } from '../../config/env';
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
@@ -54,7 +53,7 @@ export default function LoginScreen() {
       }
 
       const result = await InAppBrowser.openAuth(
-        `${API_URL}/api/mobile/${provider}`,
+        `${API_BASE_URL}/api/mobile/${provider}`,
         'apyqs://auth/callback',
         {
           ephemeralWebSession: false,
@@ -77,7 +76,7 @@ export default function LoginScreen() {
         );
       }
 
-      const response = await fetch(`${API_URL}/api/mobile/exchange`, {
+      const response = await fetch(`${API_BASE_URL}/api/mobile/exchange`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -102,7 +101,7 @@ export default function LoginScreen() {
       await Keychain.setGenericPassword('apyqs', sessionToken, {
         service: KEYCHAIN_SERVICE,
       });
-
+      console.log(authUser);
       setAuth(authUser);
     } catch (error) {
       console.error(`AUTH: ${provider} login failed:`, error);

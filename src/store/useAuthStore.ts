@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import * as Keychain from 'react-native-keychain';
 
-const KEYCHAIN_SERVICE = 'com.apyqs.auth';
+import { API_BASE_URL, KEYCHAIN_SERVICE } from '../config/env';
 
 export type User = {
   id: string;

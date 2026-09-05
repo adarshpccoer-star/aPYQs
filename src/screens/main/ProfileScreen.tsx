@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,15 @@ import {
   TouchableOpacity,
   Pressable,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useAuthStore } from '../../store/useAuthStore';
 import { DEFAULT_AVATAR } from './HomeScreen';
 import { ScreenLayout } from '../../components/ScreenLayout';
 import { useNavigation } from '@react-navigation/native';
 import { Button } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
+import { fetchUserStats } from '../../api/question';
 
 export default function ProfileScreen() {
   const { logout } = useAuthStore();
@@ -26,6 +29,14 @@ export default function ProfileScreen() {
     { day: 'Sun', height: 'h-[20%]' },
   ];
   const [loggingOut, setLoggingOut] = useState(false);
+  const {
+    data: stats,
+    isLoading: isStatsLoading,
+    isError: isStatsError,
+  } = useQuery({
+    queryKey: ['userStats'],
+    queryFn: () => fetchUserStats(),
+  });
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
@@ -42,7 +53,15 @@ export default function ProfileScreen() {
   const { user } = useAuthStore();
   const date = new Date();
   const navigation = useNavigation<any>();
-  /* FIX: Removed redundant inner SafeAreaView since ScreenLayout provides safe area context */
+  const solvedProgressWidth = useMemo(() => {
+    if (!stats?.totalSolved || !stats?.totalTarget) return '0%';
+    const pct = Math.min(
+      100,
+      Math.round((stats.totalSolved / stats.totalTarget) * 100),
+    );
+    return `${pct}%`;
+  }, [stats]);
+
   return (
     <ScreenLayout title="Profile">
       <ScrollView
@@ -57,7 +76,7 @@ export default function ProfileScreen() {
           />
           <View className="items-center mt-3">
             <Text className="font-inter font-bold text-[24px] leading-[32px] text-on-background">
-              {user?.name}
+              {user?.name || 'Gate Aspirant'}
             </Text>
             <Text className="font-inter text-[18px] leading-[28px] text-on-surface-variant mt-1">
               {user?.branchName || 'Computer Science'}
@@ -65,7 +84,7 @@ export default function ProfileScreen() {
             <View className="flex-row gap-2 mt-4">
               <View className="border border-surface-variant px-2 py-1 rounded">
                 <Text className="font-mono text-[12px] leading-[16px] text-on-surface">
-                  {user?.yearOfGate || date.getFullYear() + 4} Aspirant
+                  {user?.yearOfGate || date.getFullYear() + 1} Aspirant
                 </Text>
               </View>
               <View className="border border-surface-variant px-2 py-1 rounded">
@@ -85,72 +104,109 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
-        {/* METRICS GRID */}
-        <View className="gap-4">
-          <View className="bg-surface border border-surface-variant rounded-lg p-6 h-40 justify-between">
-            <View className="flex-row items-center gap-2">
-              <Text className="text-2xl">🔥</Text>
-              <Text className="font-inter font-semibold text-[20px] text-on-background">
-                15 Day Streak
-              </Text>
-            </View>
-            <Text className="font-inter text-[16px] leading-[24px] text-on-surface-variant">
-              Consistent focus maintained. Keep the momentum going.
+        {isStatsLoading ? (
+          <View className="py-12 items-center justify-center">
+            <ActivityIndicator size="large" color="#4F46E5" />
+          </View>
+        ) : isStatsError || !stats ? (
+          <View className="py-6 items-center">
+            <Text className="font-inter text-on-surface-variant text-[14px]">
+              Unable to load profile statistics.
             </Text>
           </View>
-
-          <View className="bg-surface border border-surface-variant rounded-lg p-6 h-40 justify-between">
-            <View>
-              <Text className="font-mono text-[12px] leading-[16px] text-on-surface-variant mb-1">
-                Total Solved
-              </Text>
-              <Text className="font-inter font-extrabold text-[48px] leading-[56px] text-on-background">
-                342
-              </Text>
-            </View>
-            <View className="w-full h-1 bg-surface-variant rounded-full overflow-hidden">
-              <View className="h-full bg-primary-container w-[65%]" />
-            </View>
-          </View>
-
-          <View className="bg-surface border border-surface-variant rounded-lg p-6 h-40 justify-between">
-            <View>
-              <Text className="font-mono text-[12px] leading-[16px] text-on-surface-variant mb-1">
-                Accuracy
-              </Text>
-              <Text className="font-inter font-extrabold text-[48px] leading-[56px] text-on-background">
-                82%
-              </Text>
-            </View>
-            <Text className="font-mono text-[12px] leading-[16px] text-primary mt-2">
-              📈 +4% this week
-            </Text>
-          </View>
-        </View>
-
-        {/* WEEKLY PERFORMANCE CHART */}
-        <View className="bg-surface border border-surface-variant rounded-lg p-6">
-          <Text className="font-inter font-semibold text-[20px] leading-[28px] text-on-background border-b border-surface-variant pb-4">
-            Weekly Performance
-          </Text>
-          <View className="flex-row items-end justify-between h-48 mt-4 px-2">
-            {chartData.map((item, idx) => (
-              <View
-                key={idx}
-                className="items-center gap-2 flex-1 h-full justify-end"
-              >
-                <View
-                  className={`w-full max-w-[28px] bg-primary-container rounded-t ${item.height}`}
-                />
-                <Text className="font-mono text-[12px] leading-[16px] text-on-surface-variant">
-                  {item.day}
+        ) : (
+          <>
+            {/* METRICS GRID */}
+            <View className="gap-4">
+              {/* STREAK */}
+              <View className="bg-surface border border-surface-variant rounded-lg p-6 h-40 justify-between">
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-2xl">🔥</Text>
+                  <Text className="font-inter font-semibold text-[20px] text-on-background">
+                    {stats.streakDays} Day Streak
+                  </Text>
+                </View>
+                <Text className="font-inter text-[16px] leading-[24px] text-on-surface-variant">
+                  {stats.streakDays > 0
+                    ? 'Consistent focus maintained. Keep the momentum going.'
+                    : 'Start a practice session today to build your streak!'}
                 </Text>
               </View>
-            ))}
-          </View>
-        </View>
-        <TouchableOpacity>
-          <Button onPress={handleLogout} title="Logout" />
+
+              {/* TOTAL SOLVED */}
+              <View className="bg-surface border border-surface-variant rounded-lg p-6 h-40 justify-between">
+                <View>
+                  <Text className="font-mono text-[12px] leading-[16px] text-on-surface-variant mb-1">
+                    Total Solved
+                  </Text>
+                  <Text className="font-inter font-extrabold text-[48px] leading-[56px] text-on-background">
+                    {stats.totalSolved}
+                  </Text>
+                </View>
+                <View className="w-full h-1 bg-surface-variant rounded-full overflow-hidden">
+                  <View
+                    className="h-full bg-primary-container"
+                    style={{ width: solvedProgressWidth }}
+                  />
+                </View>
+              </View>
+
+              {/* ACCURACY */}
+              <View className="bg-surface border border-surface-variant rounded-lg p-6 h-40 justify-between">
+                <View>
+                  <Text className="font-mono text-[12px] leading-[16px] text-on-surface-variant mb-1">
+                    Accuracy
+                  </Text>
+                  <Text className="font-inter font-extrabold text-[48px] leading-[56px] text-on-background">
+                    {stats.accuracyPercentage}%
+                  </Text>
+                </View>
+                <Text className="font-mono text-[12px] leading-[16px] text-primary mt-2">
+                  {stats.weeklyChangePercentage >= 0 ? '📈 +' : '📉 '}
+                  {stats.weeklyChangePercentage}% this week
+                </Text>
+              </View>
+            </View>
+
+            {/* WEEKLY PERFORMANCE CHART */}
+            <View className="bg-surface border border-surface-variant rounded-lg p-6">
+              <Text className="font-inter font-semibold text-[20px] leading-[28px] text-on-background border-b border-surface-variant pb-4">
+                Weekly Performance
+              </Text>
+              <View className="flex-row items-end justify-between h-48 mt-4 px-2">
+                {stats.weeklyActivity.map((item, idx) => (
+                  <View
+                    key={idx}
+                    className="items-center gap-2 flex-1 h-full justify-end"
+                  >
+                    <View
+                      className="w-full max-w-[28px] bg-primary-container rounded-t"
+                      style={{
+                        height: `${Math.min(
+                          100,
+                          Math.max(5, item.percentage),
+                        )}%`,
+                      }}
+                    />
+                    <Text className="font-mono text-[12px] leading-[16px] text-on-surface-variant">
+                      {item.day}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* LOGOUT BUTTON */}
+        <TouchableOpacity
+          onPress={handleLogout}
+          disabled={loggingOut}
+          className="bg-red-600 rounded-lg py-3 items-center justify-center mt-2"
+        >
+          <Text className="text-white font-inter font-semibold text-[16px]">
+            {loggingOut ? 'Logging out...' : 'Logout'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </ScreenLayout>

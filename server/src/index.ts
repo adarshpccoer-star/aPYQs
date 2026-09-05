@@ -11,6 +11,7 @@ import { connectToMongo } from './db/mongodb/mongo.connection.js';
 import { getquestions, getSubjects } from './controller/subject.controller.js';
 import profileRouter from './router/profile.router.js';
 import questionProgressRouter from './router/questions.router.js';
+import { getMobileSession } from './utils/get-mobile-session.js';
 const app = express();
 
 const API_URL = process.env.BETTER_AUTH_URL!;
@@ -117,27 +118,7 @@ app.get('/api/mobile/github', async (req, res) => {
 });
 app.get('/api/mobile/session', async (req, res) => {
   try {
-    const authorization = req.headers.authorization;
-
-    if (!authorization?.startsWith('Bearer ')) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-      });
-    }
-
-    const sessionToken = authorization.slice('Bearer '.length).trim();
-
-    if (!sessionToken) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-      });
-    }
-
-    const session = await auth.api.getSession({
-      headers: new Headers({
-        cookie: `better-auth.session_token=${encodeURIComponent(sessionToken)}`,
-      }),
-    });
+    const session = await getMobileSession(req);
 
     if (!session) {
       return res.status(401).json({
