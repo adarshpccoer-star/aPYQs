@@ -46,30 +46,32 @@ const ListHeaderComponent = memo(
   }: ListHeaderComponentProps) => {
     return (
       <>
-        <View className="mb-6">
-          <View className="flex-row items-center bg-surface-container-lowest border-b border-surface-variant">
-            <Text className="w-[90%] mx-auto border-black absolute left-4 text-tertiary text-lg">
+        {/* SEARCH BAR SECTION */}
+        <View className="bg-white dark:bg-slate-950 px-2 mb-6">
+          <View className="flex-row items-center relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+            <Text className="absolute left-4 text-slate-400 dark:text-slate-500 text-lg z-10">
               🔍
             </Text>
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="Search questions, topics, or options..."
-              placeholderTextColor="#acacaa"
-              className="w-full pl-12 pr-4 py-4 font-inter text-[18px] leading-[28px] text-on-surface"
+              placeholderTextColor="#94a3b8"
+              className="w-full bg-transparent pl-12 pr-4 py-3.5 font-inter text-[16px] text-slate-900 dark:text-white"
             />
           </View>
         </View>
 
+        {/* SUBJECT HORIZONTAL CHIPS */}
         <View className="mb-8 gap-4">
           {isSubjectsLoading ? (
-            <ActivityIndicator size="small" color="#888" />
+            <ActivityIndicator size="small" color="#6366f1" />
           ) : isSubjectsError ? (
-            <View>
-              <Text className="text-red-600 text-xs font-mono">
+            <View className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-lg">
+              <Text className="text-red-600 dark:text-red-400 text-xs font-mono font-semibold">
                 Failed to load subjects
               </Text>
-              <Text className="text-red-500 text-xs font-mono">
+              <Text className="text-red-500 dark:text-red-400/80 text-xs font-mono mt-0.5">
                 {(subjectsError as Error)?.message}
               </Text>
             </View>
@@ -89,17 +91,17 @@ const ListHeaderComponent = memo(
                 return (
                   <Pressable
                     onPress={() => setSelectedSubject(subject)}
-                    className={`px-3 py-1 rounded border ${
+                    className={`px-3.5 py-1.5 rounded-lg border active:opacity-80 ${
                       isSelected
-                        ? 'border-2 border-primary-container bg-primary-container/10'
-                        : 'border-surface-variant bg-transparent'
+                        ? 'border-indigo-600 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-950/50'
+                        : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'
                     }`}
                   >
                     <Text
                       className={`font-mono text-[12px] leading-[16px] uppercase ${
                         isSelected
-                          ? 'text-on-surface font-bold'
-                          : 'text-tertiary'
+                          ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                          : 'text-slate-600 dark:text-slate-400 font-medium'
                       }`}
                     >
                       {subject}
@@ -111,35 +113,40 @@ const ListHeaderComponent = memo(
           )}
         </View>
 
+        {/* LOADING STATE */}
         {isQuestionsLoading && (
           <View className="py-10 items-center justify-center">
-            <ActivityIndicator size="large" color="#0000ff" />
-            <Text className="mt-2 text-tertiary font-mono">
+            <ActivityIndicator size="large" color="#6366f1" />
+            <Text className="mt-2 text-slate-500 dark:text-slate-400 font-mono text-xs">
               Loading Questions...
             </Text>
           </View>
         )}
 
+        {/* ERROR STATE */}
         {isError && (
-          <View className="p-4 mb-4 bg-red-100 border border-red-400 rounded-lg">
-            <Text className="text-red-700 font-semibold">
+          <View className="p-4 mb-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-lg">
+            <Text className="text-red-700 dark:text-red-400 font-semibold">
               Error fetching data
             </Text>
-            <Text className="text-red-600 text-sm">
+            <Text className="text-red-600 dark:text-red-300 text-sm mt-1">
               {(error as Error)?.message}
             </Text>
             <Pressable
               onPress={refetch}
-              className="mt-2 bg-red-600 px-4 py-2 rounded items-center"
+              className="mt-3 bg-red-600 dark:bg-red-500 px-4 py-2 rounded-md items-center active:opacity-90"
             >
-              <Text className="text-white font-bold">Retry</Text>
+              <Text className="text-white font-bold text-xs uppercase tracking-wider">
+                Retry
+              </Text>
             </Pressable>
           </View>
         )}
 
+        {/* EMPTY STATE */}
         {!isQuestionsLoading && !isError && filteredQuestionsCount === 0 && (
-          <View className="py-10 items-center">
-            <Text className="text-tertiary font-inter">
+          <View className="py-10 items-center justify-center">
+            <Text className="text-slate-500 dark:text-slate-400 font-inter text-sm">
               No questions found.
             </Text>
           </View>

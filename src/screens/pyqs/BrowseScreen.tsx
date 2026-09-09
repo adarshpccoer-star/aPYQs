@@ -12,7 +12,6 @@ import { QuestionCard } from '../../components/question/questionCard';
 import ListHeaderComponent from '../../components/question/listHeader';
 
 import { useAuthStore } from '../../store/useAuthStore';
-import { ScreenLayout } from '../../components/ScreenLayout';
 
 QuestionCard.displayName = 'QuestionCard';
 
@@ -116,7 +115,7 @@ const BrowseScreen = () => {
   }
 
   return (
-    <ScreenLayout title="Browse Questions">
+    <SafeAreaView className="bg-white dark:bg-slate-950 px-3 py-6 flex-1">
       <FlatList
         data={filteredQuestions}
         renderItem={renderQuestion}
@@ -141,7 +140,7 @@ const BrowseScreen = () => {
           />
         }
       />
-    </ScreenLayout>
+    </SafeAreaView>
   );
 };
 

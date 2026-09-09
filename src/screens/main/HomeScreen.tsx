@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../../store/useAuthStore';
-import { Settings } from 'lucide-react-native';
+import { Sun, Moon } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
-import { fetchProgress } from '../../api/question';
+import { fetchProgress, fetchUserStats } from '../../api/question';
 import LatexView from '../../components/latex';
+import { useThemeStore } from '../../store/useThemeStore';
 
 export const DEFAULT_AVATAR =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuAQt7c2v81NrQMpXKaT-xcaJPcGZcbFpMDWGvb4Mqr-dbg1X9PMRzprZXTdkiXBgy5ImMBIl9TGZ_ESvIeNhhptIaXDArgZm2Up7OWPa4-qcalqIQfl10SjZefw3c6ZVoJEozk_keJCGsq2vFcBo1jWqfHVExvgr_m463kCsqw1uClGaL8xh03lRHXxOmyJWsGalLjv0QgwLPr1EBDd2eeiWSV9a8q9FiGSEQNF8ef9B5B_s3GO4GI';
@@ -21,6 +22,8 @@ export const DEFAULT_AVATAR =
 const HomeScreen = () => {
   const navigation = useNavigation<any>();
   const { user } = useAuthStore();
+  const { theme, toggleTheme } = useThemeStore();
+  const isDarkMode = theme === 'dark';
 
   const {
     data: questionProgress,
@@ -32,10 +35,28 @@ const HomeScreen = () => {
     queryFn: () => fetchProgress(),
   });
 
+  const {
+    data: stats,
+    isLoading: isStatsLoading,
+    isError: isStatsError,
+  } = useQuery({
+    queryKey: ['userStats'],
+    queryFn: () => fetchUserStats(),
+  });
+
+  const solvedProgressWidth = useMemo(() => {
+    if (!stats?.totalSolved || !stats?.totalTarget) return '0%';
+    const pct = Math.min(
+      100,
+      Math.round((stats.totalSolved / stats.totalTarget) * 100),
+    );
+    return `${pct}%`;
+  }, [stats]);
+
   return (
     <SafeAreaView className="bg-white dark:bg-slate-950 flex-1">
       {/* TOP APP BAR */}
-      <View className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex-row justify-between items-center w-full px-6 py-4">
+      <View className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex-row justify-between items-center px-6 py-4">
         <View className="flex-row items-center gap-4">
           <Pressable
             onPress={() => navigation.navigate('Profile')}
@@ -59,12 +80,16 @@ const HomeScreen = () => {
           )}
         </View>
 
+        {/* DIRECT THEME TOGGLE BUTTON */}
         <Pressable
           className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 active:opacity-80"
-          onPress={() => navigation.navigate('Setting')}
+          onPress={toggleTheme}
         >
-          {/* Lucide icons are native components; pass size & color props directly */}
-          <Settings size={20} className="text-slate-900 dark:text-white" />
+          {isDarkMode ? (
+            <Sun size={20} className="text-amber-400" color="#f59e0b" />
+          ) : (
+            <Moon size={20} className="text-slate-900" color="#0f172a" />
+          )}
         </Pressable>
       </View>
 
@@ -84,68 +109,91 @@ const HomeScreen = () => {
           </Text>
         </View>
 
-        {/* SELECT EXAM TRACK BENTO */}
+        {/* PERFORMANCE STATS BENTO SECTION */}
         <View className="gap-4">
           <View className="flex-row justify-between items-end">
             <Text className="font-inter font-semibold text-[20px] leading-[28px] text-slate-900 dark:text-white">
-              Select Exam Track
+              Your Performance
             </Text>
-            <Pressable>
+            <Pressable onPress={() => navigation.navigate('Profile')}>
               <Text className="font-inter font-semibold text-[14px] text-slate-600 dark:text-slate-400 underline">
-                View all
+                View profile
               </Text>
             </Pressable>
           </View>
 
-          <View className="gap-4 space-y-2 justify-between">
-            <Pressable className="flex-col justify-between h-48 p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 active:border-slate-900 dark:active:border-white rounded-lg">
-              <View className="flex-row justify-between items-start">
-                <View className="border border-slate-300 dark:border-slate-700 px-2 py-1 rounded">
-                  <Text className="font-mono text-[12px] leading-[16px] text-slate-600 dark:text-slate-400">
-                    ENGINEERING
-                  </Text>
+          {isStatsLoading ? (
+            <View className="p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl items-center justify-center">
+              <ActivityIndicator size="small" color="#4f46e5" />
+            </View>
+          ) : isStatsError || !stats ? (
+            <View className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl items-center">
+              <Text className="font-inter text-slate-600 dark:text-slate-400 text-[14px]">
+                Unable to load performance statistics.
+              </Text>
+            </View>
+          ) : (
+            <View className="gap-4">
+              {/* STREAK CARD */}
+              <View className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex-row items-center justify-between">
+                <View className="flex-row items-center gap-3">
+                  <Text className="text-3xl">🔥</Text>
+                  <View>
+                    <Text className="font-inter font-bold text-[20px] text-slate-900 dark:text-white">
+                      {stats.streakDays} Day Streak
+                    </Text>
+                    <Text className="font-inter text-[13px] text-slate-600 dark:text-slate-400 mt-0.5">
+                      {stats.streakDays > 0
+                        ? 'Consistent focus maintained!'
+                        : 'Start a session to build your streak!'}
+                    </Text>
+                  </View>
                 </View>
-                <Text className="text-slate-600 dark:text-slate-400 text-base">
-                  ↗
-                </Text>
               </View>
-              <View>
-                <Text className="font-inter font-semibold text-[20px] leading-[28px] text-slate-900 dark:text-white mb-1">
-                  JEE Mains
-                </Text>
-                <Text className="font-inter text-[14px] leading-[20px] text-slate-600 dark:text-slate-400">
-                  2,450 Questions
-                </Text>
-              </View>
-            </Pressable>
 
-            <Pressable className="flex-col justify-between h-48 p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 active:border-slate-900 dark:active:border-white rounded-lg">
-              <View className="flex-row justify-between items-start">
-                <View className="border border-slate-300 dark:border-slate-700 px-2 py-1 rounded">
-                  <Text className="font-mono text-[12px] leading-[16px] text-slate-600 dark:text-slate-400">
-                    MEDICAL
+              <View className="flex-row gap-4">
+                {/* TOTAL SOLVED CARD */}
+                <View className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 justify-between">
+                  <View>
+                    <Text className="font-mono text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                      Total Solved
+                    </Text>
+                    <Text className="font-inter font-extrabold text-[32px] leading-[38px] text-slate-900 dark:text-white">
+                      {stats.totalSolved}
+                    </Text>
+                  </View>
+                  <View className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mt-3">
+                    <View
+                      className="h-full bg-indigo-600 dark:bg-indigo-500"
+                      style={{ width: solvedProgressWidth }}
+                    />
+                  </View>
+                </View>
+
+                {/* ACCURACY CARD */}
+                <View className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 justify-between">
+                  <View>
+                    <Text className="font-mono text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                      Accuracy
+                    </Text>
+                    <Text className="font-inter font-extrabold text-[32px] leading-[38px] text-slate-900 dark:text-white">
+                      {stats.accuracyPercentage}%
+                    </Text>
+                  </View>
+                  <Text className="font-mono text-[11px] text-indigo-600 dark:text-indigo-400 mt-3">
+                    {stats.weeklyChangePercentage >= 0 ? '📈 +' : '📉 '}
+                    {stats.weeklyChangePercentage}% this week
                   </Text>
                 </View>
-                <Text className="text-slate-600 dark:text-slate-400 text-base">
-                  ↗
-                </Text>
               </View>
-              <View>
-                <Text className="font-inter font-semibold text-[20px] leading-[28px] text-slate-900 dark:text-white mb-1">
-                  NEET UG
-                </Text>
-                <Text className="font-inter text-[14px] leading-[20px] text-slate-600 dark:text-slate-400">
-                  3,120 Questions
-                </Text>
-              </View>
-            </Pressable>
-          </View>
+            </View>
+          )}
         </View>
 
         {/* PROGRESS OVERVIEW CARD */}
-        <View className="p-2 mt-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl gap-6">
+        <View className="p-2 bg-slate-50 dark:bg-slate-900 border dark:text-slate-200 text-black border-slate-200 dark:border-slate-800 rounded-xl gap-6">
           {isQuestionProgressLoading && (
-            <View className="flex-row justify-center items-center gap-2">
+            <View className="flex-row justify-center items-center gap-2 py-4">
               <ActivityIndicator size="large" color="#4f46e5" />
               <Text className="font-inter font-semibold text-[16px] text-slate-900 dark:text-white">
                 Loading...
@@ -154,7 +202,7 @@ const HomeScreen = () => {
           )}
 
           {isQuestionProgressError && (
-            <View className="flex-row justify-center items-center gap-2">
+            <View className="flex-row justify-center items-center gap-2 py-4">
               <Text className="font-inter font-semibold text-[14px] bg-red-500 text-white px-4 py-2 rounded-lg">
                 {questionProgressError?.message || 'Failed to load progress'}
               </Text>
@@ -163,7 +211,7 @@ const HomeScreen = () => {
 
           {questionProgress?.data && (
             <View className="gap-4">
-              <View className="flex-row justify-between items-center">
+              <View className="flex-row justify-between items-center px-2 pt-2">
                 <Text className="font-inter font-semibold text-[20px] leading-[28px] text-slate-900 dark:text-white">
                   Recent Activity
                 </Text>
@@ -174,16 +222,14 @@ const HomeScreen = () => {
                 </Pressable>
               </View>
 
-              {/* Horizontal scrollable cards for recent attempts */}
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 12 }}
+                contentContainerStyle={{ gap: 12, paddingHorizontal: 8 }}
               >
                 {questionProgress.data.map((item: any) => {
                   const isCorrect = item.correct;
                   const questionText = item.question?.questionLatex || '';
-                  // Truncate LaTeX text for card preview
                   const truncatedText =
                     questionText.length > 80
                       ? `${questionText.slice(0, 80)}...`
@@ -194,7 +240,6 @@ const HomeScreen = () => {
                       key={item.id}
                       className="w-64 p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg justify-between gap-3 active:opacity-90"
                     >
-                      {/* Header: Question Number, Branch & Subject */}
                       <View className="flex-col gap-1">
                         <View className="flex-row justify-between items-center">
                           <View className="bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded">
@@ -223,7 +268,6 @@ const HomeScreen = () => {
                           </View>
                         </View>
 
-                        {/* Subject Tag */}
                         {item.question?.mainTopic && (
                           <Text className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 mt-1">
                             {item.question.mainTopic}
@@ -234,9 +278,9 @@ const HomeScreen = () => {
                       <LatexView
                         latex={truncatedText}
                         fontSize={14}
-                        color="#FFFFFF"
+                        color={isDarkMode ? '#FFFFFF' : '#0F172A'}
                       />
-                      {/* Footer: Exam Tag & Attempt Date */}
+
                       <View className="pt-2 border-t border-slate-100 dark:border-slate-800 flex-row justify-between items-center">
                         <Text className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                           {item.question?.exam?.title || 'Practice'}

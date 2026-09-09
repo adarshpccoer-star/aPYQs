@@ -22,6 +22,7 @@ import {
 } from '../../api/question';
 import SolutionDetail from './SolutionDetail';
 import LatexView from '../../components/latex';
+import { useThemeStore } from '../../store/useThemeStore';
 
 export type RootStackParamList = {
   MainTabs: undefined;
@@ -47,6 +48,7 @@ interface AnswerOptionProps {
   submitted: boolean;
   target: boolean;
   type: 'MCQ' | 'MSQ';
+  isDarkMode: boolean;
   onPress: (key: string) => void;
 }
 
@@ -58,47 +60,49 @@ const AnswerOption = memo(
     submitted,
     target,
     type,
+    isDarkMode,
     onPress,
   }: AnswerOptionProps) => {
-    let borderStyle = 'border-surface-variant';
-    let bgStyle = 'bg-surface';
+    let borderStyle = 'border-slate-200 dark:border-slate-800';
+    let bgStyle = 'bg-white dark:bg-slate-900';
 
     if (submitted) {
       if (target) {
-        borderStyle = 'border-2 border-green-600';
-        bgStyle = 'bg-green-500/10';
+        borderStyle = 'border-2 border-emerald-600 dark:border-emerald-500';
+        bgStyle = 'bg-emerald-50 dark:bg-emerald-950/40';
       } else if (selected && !target) {
-        borderStyle = 'border-2 border-red-600';
-        bgStyle = 'bg-red-500/10';
+        borderStyle = 'border-2 border-rose-600 dark:border-rose-500';
+        bgStyle = 'bg-rose-50 dark:bg-rose-950/40';
       }
     } else if (selected) {
-      borderStyle = 'border-2 border-on-surface';
+      borderStyle = 'border-2 border-indigo-600 dark:border-indigo-400';
+      bgStyle = 'bg-indigo-50/50 dark:bg-indigo-950/30';
     }
 
     return (
       <Pressable
         disabled={submitted}
         onPress={() => onPress(optionKey)}
-        className={`border rounded-lg p-5 flex-row items-center gap-4 ${borderStyle} ${bgStyle}`}
+        className={`border rounded-lg p-5 flex-row items-center gap-4 active:opacity-90 ${borderStyle} ${bgStyle}`}
       >
         <View
           className={`w-7 h-7 ${
             type === 'MSQ' ? 'rounded-md' : 'rounded-full'
           } border items-center justify-center ${
             submitted && target
-              ? 'bg-green-600 border-green-600'
+              ? 'bg-emerald-600 border-emerald-600'
               : submitted && selected && !target
-              ? 'bg-red-600 border-red-600'
+              ? 'bg-rose-600 border-rose-600'
               : selected
-              ? 'bg-on-surface border-on-surface'
-              : 'border-surface-variant'
+              ? 'bg-indigo-600 dark:bg-indigo-500 border-indigo-600 dark:border-indigo-500'
+              : 'border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800'
           }`}
         >
           <Text
-            className={`font-mono text-[12px] ${
+            className={`font-mono text-[12px] font-bold ${
               selected || (submitted && target)
                 ? 'text-white'
-                : 'text-on-surface'
+                : 'text-slate-700 dark:text-slate-300'
             }`}
           >
             {optionKey}
@@ -106,7 +110,11 @@ const AnswerOption = memo(
         </View>
 
         <View className="flex-1">
-          <LatexView latex={option.latex} fontSize={16} />
+          <LatexView
+            latex={option.latex}
+            fontSize={16}
+            color={isDarkMode ? '#FFFFFF' : '#0F172A'}
+          />
         </View>
       </Pressable>
     );
@@ -120,6 +128,9 @@ const PracticeScreen = ({ navigation }: any) => {
   const { branch, subject, initialQuestionId } = route.params;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [attempts, setAttempts] = useState<Record<number, AttemptState>>({});
+
+  const { theme } = useThemeStore();
+  const isDarkMode = theme === 'dark';
 
   const {
     data,
@@ -289,7 +300,6 @@ const PracticeScreen = ({ navigation }: any) => {
   const handleSubmit = useCallback(async () => {
     if (isSubmitted || !currentQuestion) return;
 
-    // Evaluated before state mutation
     const correct = isCorrect;
 
     updateAttempt(prev => ({
@@ -303,11 +313,8 @@ const PracticeScreen = ({ navigation }: any) => {
       correct,
     };
 
-    console.log('Submitting progress:', payload);
-
     try {
       await saveQuestionProgress(payload);
-      console.log('Progress saved successfully');
     } catch (error) {
       console.error('Failed to save progress to server:', error);
     }
@@ -315,9 +322,9 @@ const PracticeScreen = ({ navigation }: any) => {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text className="mt-2 text-tertiary font-mono">
+      <SafeAreaView className="flex-1 bg-white dark:bg-slate-950 items-center justify-center">
+        <ActivityIndicator size="large" color="#6366f1" />
+        <Text className="mt-2 text-slate-500 dark:text-slate-400 font-mono text-xs">
           Loading Practice Queue...
         </Text>
       </SafeAreaView>
@@ -326,22 +333,25 @@ const PracticeScreen = ({ navigation }: any) => {
 
   if (isError || !currentQuestion) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center p-6">
-        <Text className="text-red-600 font-bold mb-4">
+      <SafeAreaView className="flex-1 bg-white dark:bg-slate-950 items-center justify-center p-6">
+        <Text className="text-red-600 dark:text-red-400 font-bold mb-4">
           Failed to load questions.
         </Text>
         <Pressable
           onPress={() => navigation.goBack()}
-          className="bg-primary px-4 py-2 rounded"
+          className="bg-indigo-600 dark:bg-indigo-500 px-4 py-2 rounded-lg"
         >
-          <Text className="text-white">Go Back</Text>
+          <Text className="text-white font-semibold">Go Back</Text>
         </Pressable>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }} className="bg-background flex-col">
+    <SafeAreaView
+      style={{ flex: 1 }}
+      className="bg-white dark:bg-slate-950 flex-col"
+    >
       <ScrollView
         key={`question-scroll-${currentIndex}`}
         className="flex-1 w-full max-w-[720px] mx-auto"
@@ -354,13 +364,13 @@ const PracticeScreen = ({ navigation }: any) => {
       >
         {/* METADATA TAGS */}
         <View className="flex-row flex-wrap gap-2 mb-4">
-          <View className="border border-surface-variant px-2 py-1 rounded">
-            <Text className="font-mono text-[12px] text-on-surface-variant uppercase">
+          <View className="border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-2.5 py-1 rounded">
+            <Text className="font-mono text-[12px] text-slate-600 dark:text-slate-400 uppercase font-medium">
               {currentQuestion.branch}
             </Text>
           </View>
-          <View className="bg-surface-container px-2 py-1 rounded border border-surface-variant">
-            <Text className="font-mono text-[12px] font-bold text-on-surface uppercase">
+          <View className="bg-indigo-50 dark:bg-indigo-950/50 px-2.5 py-1 rounded border border-indigo-200 dark:border-indigo-800">
+            <Text className="font-mono text-[12px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">
               {currentQuestion.type}
             </Text>
           </View>
@@ -368,7 +378,11 @@ const PracticeScreen = ({ navigation }: any) => {
 
         {/* QUESTION */}
         <View className="mb-8">
-          <LatexView latex={currentQuestion.questionLatex} fontSize={16} />
+          <LatexView
+            latex={currentQuestion.questionLatex}
+            fontSize={16}
+            color={isDarkMode ? '#FFFFFF' : '#0F172A'}
+          />
         </View>
 
         {/* OPTIONS */}
@@ -385,6 +399,7 @@ const PracticeScreen = ({ navigation }: any) => {
                   submitted={isSubmitted}
                   target={targetAnswers.includes(optionKey)}
                   type={currentQuestion.type as 'MCQ' | 'MSQ'}
+                  isDarkMode={isDarkMode}
                   onPress={handleOptionPress}
                 />
               );
@@ -395,7 +410,7 @@ const PracticeScreen = ({ navigation }: any) => {
         {/* NAT NUMERICAL INPUT */}
         {currentQuestion.type === 'NAT' && (
           <View className="mb-6 gap-2">
-            <Text className="font-mono text-[14px] text-on-surface-variant">
+            <Text className="font-mono text-[14px] text-slate-600 dark:text-slate-400">
               Enter Numerical Answer:
             </Text>
             <TextInput
@@ -406,12 +421,13 @@ const PracticeScreen = ({ navigation }: any) => {
                 updateAttempt(prev => ({ ...prev, natAnswer: val }))
               }
               placeholder="e.g. 12.5"
-              className={`border p-4 rounded-lg font-mono text-[18px] bg-surface ${
+              placeholderTextColor="#94a3b8"
+              className={`border p-4 rounded-lg font-mono text-[18px] bg-white dark:bg-slate-900 ${
                 isSubmitted
                   ? isCorrect
-                    ? 'border-green-600 bg-green-500/10'
-                    : 'border-red-600 bg-red-500/10'
-                  : 'border-surface-variant text-on-surface'
+                    ? 'border-emerald-600 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-slate-900 dark:text-white'
+                    : 'border-rose-600 dark:border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-slate-900 dark:text-white'
+                  : 'border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white'
               }`}
             />
           </View>
@@ -426,14 +442,14 @@ const PracticeScreen = ({ navigation }: any) => {
                 ? !natAnswer.trim()
                 : selectedOptions.length === 0
             }
-            className={`w-full py-4 rounded-lg items-center mb-6 ${
+            className={`w-full py-4 rounded-lg items-center mb-6 active:opacity-90 ${
               (
                 currentQuestion.type === 'NAT'
                   ? natAnswer.trim()
                   : selectedOptions.length > 0
               )
-                ? 'bg-primary'
-                : 'bg-surface-variant opacity-50'
+                ? 'bg-indigo-600 dark:bg-indigo-500'
+                : 'bg-slate-200 dark:bg-slate-800 opacity-50'
             }`}
           >
             <Text className="text-white font-semibold text-[16px]">
@@ -457,7 +473,7 @@ const PracticeScreen = ({ navigation }: any) => {
       </ScrollView>
 
       {/* FOOTER NAVIGATION */}
-      <View className="absolute bottom-0 left-0 w-full bg-surface border-t border-surface-variant p-4 z-20 pb-safe">
+      <View className="absolute bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-4 z-20 pb-safe">
         <View className="max-w-[720px] w-full mx-auto flex-row justify-between items-center gap-4 px-2">
           {/* Previous Button */}
           <Pressable
@@ -467,9 +483,10 @@ const PracticeScreen = ({ navigation }: any) => {
               styles.navButton,
               currentIndex === 0 ? styles.disabledBtn : styles.activeBtn,
             ]}
+            className="bg-slate-100 dark:bg-slate-800"
           >
-            <MoveLeft size={18} color="#111111" />
-            <Text className="font-inter font-semibold text-[14px] text-on-surface">
+            <MoveLeft size={18} color={isDarkMode ? '#FFFFFF' : '#0F172A'} />
+            <Text className="font-inter font-semibold text-[14px] text-slate-900 dark:text-white">
               Previous
             </Text>
           </Pressable>
@@ -479,12 +496,12 @@ const PracticeScreen = ({ navigation }: any) => {
             onPress={handleNextQuestion}
             disabled={!hasNextPage && currentIndex >= questions.length - 1}
             style={styles.navButton}
-            className="bg-primary-container"
+            className="bg-indigo-600 dark:bg-indigo-500"
           >
-            <Text className="font-inter font-semibold text-[14px] text-on-surface">
+            <Text className="font-inter font-semibold text-[14px] text-white">
               Next
             </Text>
-            <MoveRight size={18} color="#111111" />
+            <MoveRight size={18} color="#FFFFFF" />
           </Pressable>
         </View>
       </View>

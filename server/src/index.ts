@@ -12,6 +12,9 @@ import { getquestions, getSubjects } from './controller/subject.controller.js';
 import profileRouter from './router/profile.router.js';
 import questionProgressRouter from './router/questions.router.js';
 import { getMobileSession } from './utils/get-mobile-session.js';
+import { user } from './db/schema.js';
+import { eq } from 'drizzle-orm';
+import { db } from './db/drizzle/index.js';
 const app = express();
 
 const API_URL = process.env.BETTER_AUTH_URL!;
@@ -126,8 +129,22 @@ app.get('/api/mobile/session', async (req, res) => {
       });
     }
 
+    const [dbUser] = await db
+      .select()
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .limit(1);
+
+    if (!dbUser) {
+      return res.status(404).json({
+        error: 'User not found',
+      });
+    }
+
+    console.log('MOBILE SESSION DB USER:', dbUser);
+
     return res.status(200).json({
-      user: session.user,
+      user: dbUser,
       session: session.session,
     });
   } catch (error) {
@@ -236,9 +253,23 @@ app.post('/api/mobile/exchange', async (req, res) => {
       email: session.user.email,
     });
 
+    const [dbUser] = await db
+      .select()
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .limit(1);
+
+    if (!dbUser) {
+      return res.status(404).json({
+        error: 'User not found',
+      });
+    }
+
+    console.log('MOBILE EXCHANGE DB USER:', dbUser);
+
     return res.json({
       sessionToken,
-      user: session.user,
+      user: dbUser,
       session: session.session,
     });
   } catch (error) {

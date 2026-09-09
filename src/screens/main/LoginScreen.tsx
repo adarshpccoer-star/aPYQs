@@ -13,6 +13,14 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../../store/useAuthStore';
 
 import { API_BASE_URL, KEYCHAIN_SERVICE } from '../../config/env';
+const isProfileComplete = (user: any) => {
+  if (!user) return false;
+  return (
+    Boolean(user.branchCode?.trim()) &&
+    Boolean(user.branchName?.trim()) &&
+    Number(user.yearOfGate) > 0
+  );
+};
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
@@ -27,17 +35,14 @@ export default function LoginScreen() {
   const setAuth = useAuthStore(state => state.setAuth);
   const logout = useAuthStore(state => state.logout);
 
+  // Auto-redirect if user was restored from persistent storage on app launch
   useEffect(() => {
-    if (!isRestoring && user) {
-      const profileComplete =
-        !!user.branchCode &&
-        !!user.branchName &&
-        user.yearOfGate !== null &&
-        user.yearOfGate !== undefined;
-
+    if (!isRestoring && user && !loading) {
+      const profileComplete = isProfileComplete(user);
+      console.log('AUTO-NAVIGATING (RESTORED SESSION):', { profileComplete });
       navigation.navigate(profileComplete ? 'Profile' : 'SignupForm');
     }
-  }, [user, isRestoring, navigation]);
+  }, [user, isRestoring, loading, navigation]);
 
   const handleOAuthLogin = async (provider: 'github' | 'google') => {
     if (loading) return;
@@ -47,10 +52,7 @@ export default function LoginScreen() {
 
     try {
       const available = await InAppBrowser.isAvailable();
-
-      if (!available) {
-        throw new Error('InAppBrowser is not available');
-      }
+      if (!available) throw new Error('InAppBrowser is not available');
 
       const result = await InAppBrowser.openAuth(
         `${API_BASE_URL}/api/mobile/${provider}`,
@@ -64,6 +66,8 @@ export default function LoginScreen() {
       );
 
       if (result.type !== 'success' || !result.url) {
+        setLoading(false);
+        setLoginProvider(null);
         return;
       }
 
@@ -78,9 +82,7 @@ export default function LoginScreen() {
 
       const response = await fetch(`${API_BASE_URL}/api/mobile/exchange`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       });
 
@@ -95,17 +97,29 @@ export default function LoginScreen() {
       const { sessionToken, user: authUser } = data;
 
       if (!sessionToken || !authUser) {
-        throw new Error('Invalid exchange response');
+        throw new Error('Invalid exchange response from server');
       }
+
+      console.log('--- DB RESPONSE FROM API ---');
+      console.log('AUTH USER FROM API:', JSON.stringify(authUser, null, 2));
+
+      const profileComplete = isProfileComplete(authUser);
+      console.log('PROFILE COMPLETE VERDICT:', profileComplete);
 
       await Keychain.setGenericPassword('apyqs', sessionToken, {
         service: KEYCHAIN_SERVICE,
       });
-      console.log(authUser);
+
       setAuth(authUser);
+
+      // Clean up loading state before redirecting
+      setLoading(false);
+      setLoginProvider(null);
+
+      // Direct navigation to destination screen
+      navigation.navigate(profileComplete ? 'Profile' : 'SignupForm');
     } catch (error) {
       console.error(`AUTH: ${provider} login failed:`, error);
-    } finally {
       setLoading(false);
       setLoginProvider(null);
     }
